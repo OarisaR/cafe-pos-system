@@ -55,12 +55,6 @@ export const Navbar = ({ onOpenAuthModal }) => {
             <div style={styles.userProfile}>
               <div style={styles.userInfo}>
                 <div style={styles.userName}>{profile?.full_name || user.email}</div>
-                <div style={styles.roleContainer}>
-                  <span style={role === 'admin' ? styles.adminBadge : styles.cashierBadge}>
-                    <ShieldCheck size={11} />
-                    {role === 'admin' ? 'Owner' : 'Cashier'}
-                  </span>
-                </div>
               </div>
 
               <button

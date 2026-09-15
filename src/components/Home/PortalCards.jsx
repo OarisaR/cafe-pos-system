@@ -1,16 +1,5 @@
 import React from 'react'
-import { 
-  ShoppingBag, 
-  Grid, 
-  Package, 
-  ShieldCheck, 
-  ArrowRight, 
-  Check, 
-  Lock, 
-  Zap,
-  Sparkles,
-  Users
-} from 'lucide-react'
+import { ArrowRight, ShoppingBag, Grid, Package, ShieldCheck } from 'lucide-react'
 
 export const PortalCards = ({ onOpenAuthModal }) => {
   const showcaseFeatures = [
@@ -18,122 +7,97 @@ export const PortalCards = ({ onOpenAuthModal }) => {
       id: 'pos_counter',
       image: '/images/counter_speed.jpg',
       badge: 'Frontline Register',
+      icon: <ShoppingBag size={18} color="var(--color-primary-active)" />,
       title: 'Counter POS & Fast Billing',
-      subtitle: 'High-speed drink creation with customized milk, sweetness, and shot options. Thermal receipt generation and instant cash change calculation.',
-      points: [
-        'Touch-first register layout (< 3 seconds checkout)',
-        'Cash, bKash, Nagad QR & Card settlements',
-        'Configurable NBR VAT & itemized receipts'
-      ]
+      description: 'Touch-first order entry, drink customizations, thermal receipt printing, and instant change calculation.',
     },
     {
       id: 'floor_tables',
       image: '/images/dining_tables.jpg',
-      badge: 'Floor Management',
+      badge: 'Floor Operations',
+      icon: <Grid size={18} color="var(--color-primary-active)" />,
       title: 'Visual Floor Map & Tables',
-      subtitle: 'Live visual occupancy monitoring with color-coded table states. Seamless table merging for large parties and auto-release on payment.',
-      points: [
-        'Color-coded states: Empty, Occupied, Reserved, Cleaning',
-        'Instant table assignment and guest headcount',
-        'Automatic table release upon bill clearance'
-      ]
+      description: 'Live occupancy monitoring with color-coded table states, party merging, and auto-release on payment.',
     },
     {
       id: 'inventory_craft',
       image: '/images/ingredients_craft.jpg',
       badge: 'Kitchen & Pantry',
+      icon: <Package size={18} color="var(--color-primary-active)" />,
       title: 'Ingredient Stock & Recipe BOM',
-      subtitle: 'Precision consumption of espresso beans, dairy, and syrups per cup brewed. Automatic daily gross profit margins and restock alerts.',
-      points: [
-        'Automatic ingredient deduction per recipe sold',
-        'Low, Moderate, and High stock threshold badges',
-        'Arithmetic precision COGS & gross margin reporting'
-      ]
+      description: 'Automatic ingredient deduction per cup sold, real-time low stock alerts, and precise COGS tracking.',
     },
     {
-      id: 'admin_control',
+      id: 'staff_governance',
       image: '/images/hero_pos.jpg',
-      badge: 'Master Governance',
-      title: 'Super Admin & Dynamic Roles',
-      subtitle: 'Sole administrative governance over personnel. Create arbitrary permission groups with granular View and Edit control per module.',
-      points: [
-        'Email verification dispatch via Supabase Auth',
-        'Initial temporary password & phone records',
-        'Dynamic custom permission groups & rights matrix'
-      ]
+      badge: 'Staff & Security',
+      icon: <ShieldCheck size={18} color="var(--color-primary-active)" />,
+      title: 'Staff & Role Governance',
+      description: 'Role-based access control, modular permission groups, and secure terminal station management.',
     }
   ]
 
   return (
     <section id="platform-showcase" style={styles.section}>
-      {/* Section Heading */}
+      {/* Minimal Clean Header */}
       <div style={styles.sectionHeader}>
-        <div style={styles.sectionBadge}>
-          <Sparkles size={14} />
-          <span>Operational Capabilities</span>
-        </div>
-        <h2 style={styles.sectionTitle}>Engineered for Every Cafe Touchpoint</h2>
+        <h2 style={styles.sectionTitle}>System Modules</h2>
         <p style={styles.sectionSubtitle}>
-          A cohesive ecosystem linking your frontline baristas, floor attendants, inventory pantry, and executive ownership into one fluid interface.
+          Core functional capabilities aligned with standard cafe workflow requirements.
         </p>
       </div>
 
-      {/* 4 Feature Showcase Cards with Static Images */}
-      <div style={styles.grid}>
-        {showcaseFeatures.map((feat) => (
-          <div key={feat.id} style={styles.card}>
-            {/* Top Photo Frame */}
-            <div style={styles.imageWrapper}>
-              <img
-                src={feat.image}
-                alt={feat.title}
-                style={styles.cardImage}
-                loading="lazy"
-              />
-              <div style={styles.imageOverlay} />
-              <span style={styles.imageBadge}>{feat.badge}</span>
-            </div>
+      {/* Alternating Zig-Zag Layout (Image + Text, then Reversed) */}
+      <div style={styles.listContainer}>
+        {showcaseFeatures.map((feat, index) => {
+          const isReverse = index % 2 !== 0 // Odd rows: Text left, Image right
 
-            {/* Card Body */}
-            <div style={styles.cardContent}>
-              <h3 style={styles.cardTitle}>{feat.title}</h3>
-              <p style={styles.cardSubtitle}>{feat.subtitle}</p>
+          return (
+            <div
+              key={feat.id}
+              style={{
+                ...styles.row,
+                flexDirection: isReverse ? 'row-reverse' : 'row',
+              }}
+            >
+              {/* Image Column */}
+              <div style={styles.imageColumn}>
+                <div style={styles.imageWrapper}>
+                  <img
+                    src={feat.image}
+                    alt={feat.title}
+                    style={styles.featureImage}
+                    loading="lazy"
+                  />
+                </div>
+              </div>
 
-              <div style={styles.pointsList}>
-                {feat.points.map((pt, i) => (
-                  <div key={i} style={styles.pointItem}>
-                    <div style={styles.checkIconBox}>
-                      <Check size={12} color="var(--color-primary-active)" strokeWidth={3} />
-                    </div>
-                    <span>{pt}</span>
+              {/* Text Column */}
+              <div style={styles.textColumn}>
+                <div style={styles.badgeRow}>
+                  <div style={styles.badge}>
+                    {feat.icon}
+                    <span>{feat.badge}</span>
                   </div>
-                ))}
+                </div>
+
+                <h3 style={styles.rowTitle}>{feat.title}</h3>
+
+                <p style={styles.rowDesc}>{feat.description}</p>
+
+                <div>
+                  <button
+                    onClick={onOpenAuthModal}
+                    style={styles.actionBtn}
+                  >
+                    <span>Launch Module</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Bottom Callout Banner */}
-      <div style={styles.calloutCard}>
-        <div style={styles.calloutLeft}>
-          <div style={styles.calloutBadge}>
-            <ShieldCheck size={15} />
-            <span>Secure Staff Access</span>
-          </div>
-          <h3 style={styles.calloutTitle}>Ready to begin your shift or manage your cafe?</h3>
-          <p style={styles.calloutDesc}>
-            Log into your staff terminal with your verified email and password. Super Admin will manage your assigned permission group.
-          </p>
-        </div>
-
-        <button
-          onClick={onOpenAuthModal}
-          style={styles.calloutBtn}
-        >
-          <span>Staff Terminal Sign In</span>
-          <ArrowRight size={17} />
-        </button>
+          )
+        })}
       </div>
     </section>
   )
@@ -143,190 +107,109 @@ const styles = {
   section: {
     maxWidth: '1240px',
     margin: '0 auto',
-    padding: '24px 24px 72px',
-    width: '100%',
+    padding: '36px 24px 64px',
   },
   sectionHeader: {
     textAlign: 'center',
-    maxWidth: '720px',
-    margin: '0 auto 48px',
-  },
-  sectionBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 14px',
-    backgroundColor: 'rgba(98, 111, 72, 0.14)',
-    color: 'var(--color-primary-active)',
-    borderRadius: 'var(--radius-full)',
-    fontSize: '0.78rem',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    marginBottom: '12px',
+    marginBottom: '40px',
   },
   sectionTitle: {
-    fontSize: 'clamp(1.8rem, 3.2vw, 2.4rem)',
+    fontSize: 'clamp(1.6rem, 2.5vw, 2.1rem)',
     fontWeight: '800',
     color: 'var(--color-text-main)',
     letterSpacing: '-0.02em',
-    marginBottom: '12px',
+    marginBottom: '6px',
   },
   sectionSubtitle: {
-    fontSize: '1rem',
+    fontSize: '0.94rem',
     color: 'var(--color-text-muted)',
-    lineHeight: 1.6,
+    maxWidth: '520px',
+    margin: '0 auto',
+    lineHeight: 1.5,
   },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '24px',
-    marginBottom: '40px',
+  listContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '32px',
   },
-  card: {
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '40px',
     backgroundColor: 'var(--color-surface)',
     border: '1.5px solid var(--color-border)',
     borderRadius: '20px',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
+    padding: '24px 28px',
     boxShadow: 'var(--shadow-sm)',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
   },
-  imageWrapper: {
-    position: 'relative',
-    height: '210px',
+  imageColumn: {
+    flex: '1 1 45%',
+    maxWidth: '480px',
     width: '100%',
-    overflow: 'hidden',
-    backgroundColor: 'var(--color-bg)',
   },
-  cardImage: {
+  imageWrapper: {
+    width: '100%',
+    height: '240px',
+    borderRadius: '14px',
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#EAE2D6',
+  },
+  featureImage: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    transition: 'transform 0.3s ease',
+    display: 'block',
+    transition: 'transform 0.35s ease',
   },
-  imageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'linear-gradient(180deg, rgba(34, 42, 30, 0.15) 0%, rgba(34, 42, 30, 0.55) 100%)',
-  },
-  imageBadge: {
-    position: 'absolute',
-    top: '14px',
-    left: '14px',
-    backgroundColor: 'rgba(247, 242, 235, 0.92)',
-    backdropFilter: 'blur(6px)',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-primary-active)',
-    fontSize: '0.74rem',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    padding: '4px 10px',
-    borderRadius: 'var(--radius-full)',
-  },
-  cardContent: {
-    padding: '24px',
-    flex: 1,
+  textColumn: {
+    flex: '1 1 55%',
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: 'center',
+    textAlign: 'left',
   },
-  cardTitle: {
-    fontSize: '1.25rem',
+  badgeRow: {
+    marginBottom: '10px',
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 10px',
+    backgroundColor: 'rgba(98, 111, 72, 0.08)',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '0.78rem',
+    fontWeight: '700',
+    color: 'var(--color-primary-active)',
+    letterSpacing: '0.02em',
+  },
+  rowTitle: {
+    fontSize: '1.35rem',
     fontWeight: '800',
     color: 'var(--color-text-main)',
+    letterSpacing: '-0.02em',
     marginBottom: '8px',
-    letterSpacing: '-0.01em',
   },
-  cardSubtitle: {
-    fontSize: '0.88rem',
+  rowDesc: {
+    fontSize: '0.95rem',
     color: 'var(--color-text-muted)',
     lineHeight: 1.55,
     marginBottom: '18px',
   },
-  pointsList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginTop: 'auto',
-    paddingTop: '14px',
-    borderTop: '1px solid var(--color-border)',
-  },
-  pointItem: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
-    fontSize: '0.82rem',
-    color: 'var(--color-text-main)',
-    lineHeight: 1.45,
-  },
-  checkIconBox: {
-    width: '18px',
-    height: '18px',
-    borderRadius: '50%',
-    backgroundColor: 'rgba(98, 111, 72, 0.16)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: '1px',
-  },
-  calloutCard: {
-    backgroundColor: 'var(--color-surface)',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: '20px',
-    padding: '36px 40px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '24px',
-    flexWrap: 'wrap',
-    boxShadow: 'var(--shadow-sm)',
-  },
-  calloutLeft: {
-    maxWidth: '680px',
-  },
-  calloutBadge: {
+  actionBtn: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    fontSize: '0.76rem',
-    fontWeight: '700',
-    color: 'var(--color-primary-active)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    marginBottom: '8px',
-  },
-  calloutTitle: {
-    fontSize: '1.5rem',
-    fontWeight: '800',
-    color: 'var(--color-text-main)',
-    marginBottom: '6px',
-    letterSpacing: '-0.02em',
-  },
-  calloutDesc: {
-    fontSize: '0.94rem',
-    color: 'var(--color-text-muted)',
-    lineHeight: 1.55,
-  },
-  calloutBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '14px 28px',
+    padding: '8px 16px',
+    backgroundColor: 'transparent',
+    border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-md)',
-    border: 'none',
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
+    color: 'var(--color-text-main)',
+    fontSize: '0.85rem',
     fontWeight: '700',
-    fontSize: '0.96rem',
     cursor: 'pointer',
-    boxShadow: '0 4px 14px rgba(98, 111, 72, 0.3)',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
   }
 }

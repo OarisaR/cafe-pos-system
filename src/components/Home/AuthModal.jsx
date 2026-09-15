@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { X, Lock, Mail, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import confetti from 'canvas-confetti'
 
 export const AuthModal = ({ isOpen, onClose, prefilledEmail = '', authNotice = null }) => {
   const { login, error, setError } = useAuth()
@@ -38,7 +37,6 @@ export const AuthModal = ({ isOpen, onClose, prefilledEmail = '', authNotice = n
 
     try {
       await login(email, password)
-      confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } })
       handleClose()
     } catch (err) {
       // Error handled in AuthContext
