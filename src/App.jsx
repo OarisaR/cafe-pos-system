@@ -10,7 +10,7 @@ import { IdleWarningModal } from './components/Home/IdleWarningModal'
 import { Coffee, ShieldCheck, Sparkles } from 'lucide-react'
 
 const MainContent = () => {
-  const { user, role, canAccess, logout } = useAuth()
+  const { user, role, canAccess, logout, markStaffConfirmed } = useAuth()
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [prefilledEmail, setPrefilledEmail] = useState('')
   const [authNotice, setAuthNotice] = useState(null)
@@ -58,7 +58,13 @@ const MainContent = () => {
         } catch {}
 
         setIsAuthModalOpen(true)
-        if (emailParam) setPrefilledEmail(decodeURIComponent(emailParam))
+        if (emailParam) {
+          const cleanEmail = decodeURIComponent(emailParam)
+          setPrefilledEmail(cleanEmail)
+          try {
+            await markStaffConfirmed(cleanEmail)
+          } catch {}
+        }
         setAuthNotice('🎉 Account email confirmed! Please sign in with your initial password.')
         setActiveNotification({
           type: 'success',

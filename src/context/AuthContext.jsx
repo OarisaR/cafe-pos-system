@@ -271,6 +271,9 @@ export const AuthProvider = ({ children }) => {
 
       setUser(data.user)
       const prof = await fetchProfile(data.user.id, data.user.user_metadata)
+      try {
+        await markStaffConfirmed(email)
+      } catch {}
       setCurrentModule(MODULES.STAFF)
       return { user: data.user, profile: prof }
     } catch (err) {
@@ -439,11 +442,26 @@ export const AuthProvider = ({ children }) => {
       const mappedList = activeProfiles.map(p => {
         const extra = extraMap[p.id] || {}
         const phone = p.phone || extra.phone || ''
-        const permission_group_id = p.permission_group_id || extra.permission_group_id || (p.role === 'admin' ? 'grp_super_admin' : 'grp_staff')
+        
+        // Retain unassigned state if no role or group was deleted
+        const permission_group_id = p.permission_group_id !== undefined && p.permission_group_id !== null
+          ? p.permission_group_id 
+          : (extra.permission_group_id !== undefined ? extra.permission_group_id : (p.role === 'admin' ? 'grp_super_admin' : null))
+
+        // Real-time confirmation status
+        const isConfirmed = Boolean(
+          p.is_confirmed === true ||
+          p.last_login_at != null ||
+          p.role === 'admin' ||
+          p.email === 'admin@cafepos.com' ||
+          extra.is_confirmed === true
+        )
+
         return {
           ...p,
           phone,
           permission_group_id,
+          is_confirmed: isConfirmed,
           resolved_role: p.role === 'admin' ? ROLES.SUPER_ADMIN : (extra.role || ROLES.STAFF)
         }
       })
@@ -501,7 +519,7 @@ export const AuthProvider = ({ children }) => {
         const dbRole = (groupId === 'grp_super_admin' || groupId === 'grp_manager') ? 'admin' : 'cashier'
         const username = cleanEmail.split('@')[0]
 
-        // 2. Insert into profiles table with phone & permission_group_id
+        // 2. Insert into profiles table with phone, permission_group_id & is_confirmed
         try {
           const { error: upsertErr } = await supabase.from('profiles').upsert({
             id: data.user.id,
@@ -510,7 +528,8 @@ export const AuthProvider = ({ children }) => {
             full_name: fullName.trim(),
             role: dbRole,
             phone: phone.trim(),
-            permission_group_id: groupId,
+            permission_group_id: groupId || null,
+            is_confirmed: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -538,11 +557,13 @@ export const AuthProvider = ({ children }) => {
           })
         }
 
-        // 3. Save extra phone, initial password, and group locally
+        // 3. Save extra phone, initial password, group, and confirmation status locally
         saveStaffExtraData(data.user.id, {
           phone: phone.trim(),
-          permission_group_id: groupId,
+          email: cleanEmail,
+          permission_group_id: groupId || null,
           initial_password: initialPassword,
+          is_confirmed: false,
           role: groupId === 'grp_super_admin' ? ROLES.SUPER_ADMIN : ROLES.STAFF,
         })
 
@@ -671,7 +692,7 @@ export const AuthProvider = ({ children }) => {
     saveStoredPermissionGroups(updated)
   }
 
-  const deletePermissionGroup = (groupId) => {
+  const deletePermissionGroup = async (groupId) => {
     const target = permissionGroups.find(g => g.id === groupId)
     if (target?.isDefault) {
       throw new Error('Default system permission groups cannot be deleted.')
@@ -679,6 +700,49 @@ export const AuthProvider = ({ children }) => {
     const updated = permissionGroups.filter(g => g.id !== groupId)
     setPermissionGroups(updated)
     saveStoredPermissionGroups(updated)
+
+    // Unassign staff who were assigned to this group (set to null, no auto-reassign)
+    const extraMap = getStaffExtraDataMap()
+    let mapChanged = false
+    Object.keys(extraMap).forEach(staffId => {
+      if (extraMap[staffId]?.permission_group_id === groupId) {
+        extraMap[staffId].permission_group_id = null
+        extraMap[staffId].role = null
+        mapChanged = true
+      }
+    })
+    if (mapChanged) {
+      localStorage.setItem(STAFF_SYNC_KEY, JSON.stringify(extraMap))
+    }
+
+    try {
+      await supabase
+        .from('profiles')
+        .update({ permission_group_id: null, updated_at: new Date().toISOString() })
+        .eq('permission_group_id', groupId)
+    } catch {}
+  }
+
+  const markStaffConfirmed = async (email) => {
+    if (!email) return
+    const extraMap = getStaffExtraDataMap()
+    let changed = false
+    Object.keys(extraMap).forEach(id => {
+      if (extraMap[id]?.email === email) {
+        extraMap[id].is_confirmed = true
+        changed = true
+      }
+    })
+    if (changed) {
+      localStorage.setItem(STAFF_SYNC_KEY, JSON.stringify(extraMap))
+    }
+
+    try {
+      await supabase
+        .from('profiles')
+        .update({ is_confirmed: true, updated_at: new Date().toISOString() })
+        .eq('email', email)
+    } catch {}
   }
 
   const isSuperAdmin = Boolean(
@@ -733,6 +797,7 @@ export const AuthProvider = ({ children }) => {
     createStaffUser,
     deleteStaffUser,
     updateUserGroup,
+    markStaffConfirmed,
     // Permission Groups methods
     permissionGroups,
     createPermissionGroup,

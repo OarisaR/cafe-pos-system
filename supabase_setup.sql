@@ -38,9 +38,10 @@ BEGIN
   END IF;
 END $$;
 
--- 4. Ensure profiles table has phone and permission_group_id columns
+-- 4. Ensure profiles table has phone, permission_group_id, and is_confirmed columns
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS permission_group_id TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT false;
 
 -- 5. Drop check constraint on role if present so custom permission group roles are supported
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
