@@ -516,7 +516,9 @@ export const AuthProvider = ({ children }) => {
         // Unregister from deleted IDs if re-creating
         removeDeletedStaffId(data.user.id)
 
+        const username = cleanEmail.split('@')[0]
         const dbRole = (groupId === 'grp_super_admin' || groupId === 'grp_manager') ? 'admin' : 'cashier'
+
         // 2. Sync phone to both auth.users.phone and public.profiles via secure RPC
         try {
           await supabase.rpc('sync_user_phone', {
