@@ -40,8 +40,8 @@ export const AdminSidebar = ({ currentModule, onSelectModule }) => {
         {
           group: 'ADMINISTRATION & CONTROL',
           items: [
-            { id: MODULES.STAFF, label: 'Staff / User Management', icon: Users, badge: 'Live Backend', isPlaceholder: false },
-            { id: MODULES.PERMISSIONS, label: 'Permission Groups', icon: ShieldCheck, badge: 'Live Backend', isPlaceholder: false },
+            { id: MODULES.STAFF, label: 'Staff / User Management', icon: Users, isPlaceholder: false },
+            { id: MODULES.PERMISSIONS, label: 'Permission Groups', icon: ShieldCheck, isPlaceholder: false },
             { id: MODULES.USER_SETTINGS, label: 'User Settings', icon: UserCheck, badge: 'Active', isPlaceholder: false },
             { id: MODULES.SETTINGS, label: 'System Settings', icon: Settings, isPlaceholder: true },
           ]

@@ -62,10 +62,10 @@ const styles = {
     backgroundImage: `
       linear-gradient(to right, 
         #EAE2D6 0%, 
-        #EAE2D6 48%, 
-        rgba(234, 226, 214, 0.94) 65%, 
-        rgba(234, 226, 214, 0.5) 82%, 
-        rgba(234, 226, 214, 0.2) 100%
+        rgba(234, 226, 214, 0.97) 36%, 
+        rgba(234, 226, 214, 0.65) 52%, 
+        rgba(234, 226, 214, 0.12) 70%, 
+        transparent 100%
       ), 
       url('/images/hero_pos.jpg')
     `,

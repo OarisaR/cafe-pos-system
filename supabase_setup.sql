@@ -37,3 +37,10 @@ BEGIN
     USING (true);
   END IF;
 END $$;
+
+-- 4. Ensure profiles table has phone and permission_group_id columns
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS permission_group_id TEXT;
+
+-- 5. Drop check constraint on role if present so custom permission group roles are supported
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
