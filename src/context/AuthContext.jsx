@@ -517,9 +517,17 @@ export const AuthProvider = ({ children }) => {
         removeDeletedStaffId(data.user.id)
 
         const dbRole = (groupId === 'grp_super_admin' || groupId === 'grp_manager') ? 'admin' : 'cashier'
-        const username = cleanEmail.split('@')[0]
+        // 2. Sync phone to both auth.users.phone and public.profiles via secure RPC
+        try {
+          await supabase.rpc('sync_user_phone', {
+            user_id: data.user.id,
+            new_phone: phone.trim()
+          })
+        } catch (rpcErr) {
+          console.warn('sync_user_phone RPC note:', rpcErr?.message)
+        }
 
-        // 2. Insert into profiles table with phone, permission_group_id & is_confirmed
+        // 3. Insert into profiles table with phone, permission_group_id & is_confirmed
         try {
           const { error: upsertErr } = await supabase.from('profiles').upsert({
             id: data.user.id,
@@ -557,7 +565,7 @@ export const AuthProvider = ({ children }) => {
           })
         }
 
-        // 3. Save extra phone, initial password, group, and confirmation status locally
+        // 4. Save extra phone, initial password, group, and confirmation status locally
         saveStaffExtraData(data.user.id, {
           phone: phone.trim(),
           email: cleanEmail,
@@ -654,13 +662,56 @@ export const AuthProvider = ({ children }) => {
       if (user?.id === staffId) {
         setProfile(prev => ({
           ...prev,
-          permission_group_id: newGroupId
+          permission_group_id: newGroupId,
+          role: dbRole
         }))
       }
 
       return true
     } catch (err) {
       console.error('Error updating user group:', err)
+      throw err
+    }
+  }
+
+  const updateStaffPhone = async (staffId, newPhone) => {
+    const cleanPhone = (newPhone || '').trim()
+    try {
+      // 1. Sync phone to both auth.users.phone and public.profiles via secure RPC
+      try {
+        await supabase.rpc('sync_user_phone', {
+          user_id: staffId,
+          new_phone: cleanPhone
+        })
+      } catch (rpcErr) {
+        console.warn('sync_user_phone RPC note:', rpcErr?.message)
+      }
+
+      // 2. Direct update to profiles table
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            phone: cleanPhone,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', staffId)
+      } catch (dbErr) {
+        console.warn('Profile phone update fallback:', dbErr?.message)
+      }
+
+      saveStaffExtraData(staffId, { phone: cleanPhone })
+
+      if (user?.id === staffId) {
+        setProfile(prev => ({
+          ...prev,
+          phone: cleanPhone
+        }))
+      }
+
+      return true
+    } catch (err) {
+      console.error('Error updating staff phone:', err)
       throw err
     }
   }
@@ -797,6 +848,7 @@ export const AuthProvider = ({ children }) => {
     createStaffUser,
     deleteStaffUser,
     updateUserGroup,
+    updateStaffPhone,
     markStaffConfirmed,
     // Permission Groups methods
     permissionGroups,

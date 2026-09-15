@@ -60,16 +60,24 @@ export const PortalCards = ({ onOpenAuthModal }) => {
                 flexDirection: isReverse ? 'row-reverse' : 'row',
               }}
             >
-              {/* Image Column */}
-              <div style={styles.imageColumn}>
-                <div style={styles.imageWrapper}>
-                  <img
-                    src={feat.image}
-                    alt={feat.title}
-                    style={styles.featureImage}
-                    loading="lazy"
-                  />
-                </div>
+              {/* Blended Image Column (Seamless blend, no isolated box) */}
+              <div 
+                style={{
+                  ...styles.imageColumn,
+                  maskImage: isReverse 
+                    ? 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.25) 20%, black 70%)'
+                    : 'linear-gradient(to left, transparent 0%, rgba(0, 0, 0, 0.25) 20%, black 70%)',
+                  WebkitMaskImage: isReverse 
+                    ? 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.25) 20%, black 70%)'
+                    : 'linear-gradient(to left, transparent 0%, rgba(0, 0, 0, 0.25) 20%, black 70%)',
+                }}
+              >
+                <img
+                  src={feat.image}
+                  alt={feat.title}
+                  style={styles.featureImage}
+                  loading="lazy"
+                />
               </div>
 
               {/* Text Column */}
@@ -134,27 +142,21 @@ const styles = {
   },
   row: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '40px',
+    alignItems: 'stretch',
     backgroundColor: 'var(--color-surface)',
     border: '1.5px solid var(--color-border)',
     borderRadius: '20px',
-    padding: '24px 28px',
+    padding: 0,
+    overflow: 'hidden',
     boxShadow: 'var(--shadow-sm)',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+    minHeight: '230px',
   },
   imageColumn: {
-    flex: '1 1 45%',
-    maxWidth: '480px',
-    width: '100%',
-  },
-  imageWrapper: {
-    width: '100%',
-    height: '240px',
-    borderRadius: '14px',
-    overflow: 'hidden',
+    flex: '1 1 44%',
+    minWidth: '280px',
     position: 'relative',
-    backgroundColor: '#EAE2D6',
+    overflow: 'hidden',
   },
   featureImage: {
     width: '100%',
@@ -164,7 +166,8 @@ const styles = {
     transition: 'transform 0.35s ease',
   },
   textColumn: {
-    flex: '1 1 55%',
+    flex: '1 1 56%',
+    padding: '32px 36px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',

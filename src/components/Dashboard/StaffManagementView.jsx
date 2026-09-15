@@ -12,10 +12,15 @@ import {
   AlertCircle, 
   CheckCircle2, 
   RefreshCw, 
-  ChevronDown,
+  Clock,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  Search,
+  UserCheck,
+  UserX,
+  Sparkles,
+  Layers
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -26,6 +31,7 @@ export const StaffManagementView = () => {
     createStaffUser, 
     deleteStaffUser, 
     updateUserGroup,
+    updateStaffPhone,
     permissionGroups 
   } = useAuth()
 
@@ -37,6 +43,10 @@ export const StaffManagementView = () => {
   const [copiedKey, setCopiedKey] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [phoneEditingStaff, setPhoneEditingStaff] = useState(null)
+  const [editingPhoneInput, setEditingPhoneInput] = useState('')
+  const [isSavingPhone, setIsSavingPhone] = useState(false)
 
   // Form State
   const [fullName, setFullName] = useState('')
@@ -44,7 +54,7 @@ export const StaffManagementView = () => {
   const [phone, setPhone] = useState('')
   const [initialPassword, setInitialPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [selectedGroupId, setSelectedGroupId] = useState(permissionGroups[3]?.id || permissionGroups[1]?.id || 'grp_staff')
+  const [selectedGroupId, setSelectedGroupId] = useState(permissionGroups[3]?.id || permissionGroups[1]?.id || '')
 
   const showToast = (type, text) => {
     setToastMessage({ type, text })
@@ -55,7 +65,7 @@ export const StaffManagementView = () => {
     setLoading(true)
     try {
       const data = await fetchStaffMembers()
-      setStaffList(data)
+      setStaffList(data || [])
     } catch (err) {
       showToast('error', 'Failed to load staff directory: ' + err.message)
     } finally {
@@ -83,7 +93,7 @@ export const StaffManagementView = () => {
     setEmail('')
     setPhone('+880 17')
     generateRandomPassword()
-    setSelectedGroupId(permissionGroups[3]?.id || permissionGroups[1]?.id || 'grp_staff')
+    setSelectedGroupId(permissionGroups[3]?.id || permissionGroups[1]?.id || '')
     setIsCreateModalOpen(true)
   }
 
@@ -106,10 +116,10 @@ export const StaffManagementView = () => {
         email,
         phone,
         initialPassword,
-        groupId: selectedGroupId
+        groupId: selectedGroupId || null
       })
 
-      showToast('success', `Staff member ${fullName} created! Confirmation email dispatched.`)
+      showToast('success', `Staff member ${fullName} registered! Verification email dispatched.`)
       setIsCreateModalOpen(false)
       setCreatedStaffCreds({
         ...result,
@@ -128,7 +138,6 @@ export const StaffManagementView = () => {
     const idToDelete = staffToDelete.id
     const nameToDelete = staffToDelete.full_name || staffToDelete.email
 
-    // Optimistically update the staff directory table immediately
     setStaffList(prev => prev.filter(s => s.id !== idToDelete))
     setStaffToDelete(null)
     showToast('success', `Staff record for ${nameToDelete} removed.`)
@@ -142,12 +151,29 @@ export const StaffManagementView = () => {
   }
 
   const handleGroupChange = async (staffId, newGroupId) => {
+    const targetGroupId = newGroupId || null
     try {
-      await updateUserGroup(staffId, newGroupId)
-      showToast('success', 'Permission group updated successfully.')
+      await updateUserGroup(staffId, targetGroupId)
+      showToast('success', targetGroupId ? 'Assigned role updated successfully.' : 'Staff member unassigned from role.')
       await loadStaff()
     } catch (err) {
-      showToast('error', err.message || 'Failed to update group.')
+      showToast('error', err.message || 'Failed to update role.')
+    }
+  }
+
+  const handleSavePhone = async (e) => {
+    e.preventDefault()
+    if (!phoneEditingStaff) return
+    setIsSavingPhone(true)
+    try {
+      await updateStaffPhone(phoneEditingStaff.id, editingPhoneInput)
+      showToast('success', `Phone number for ${phoneEditingStaff.full_name || phoneEditingStaff.email} updated!`)
+      setPhoneEditingStaff(null)
+      await loadStaff()
+    } catch (err) {
+      showToast('error', err.message || 'Failed to update phone number.')
+    } finally {
+      setIsSavingPhone(false)
     }
   }
 
@@ -159,9 +185,27 @@ export const StaffManagementView = () => {
 
   const copyAllCredentials = () => {
     if (!createdStaffCreds) return
-    const text = `Cafe POS Staff Account Credentials:\nFull Name: ${createdStaffCreds.full_name}\nEmail: ${createdStaffCreds.email}\nPhone: ${createdStaffCreds.phone}\nInitial Password: ${createdStaffCreds.initialPassword}\nAssigned Group: ${createdStaffCreds.group_name}\n\nPlease click the confirmation link sent to your email to verify your account, then sign in.`
+    const text = `Cafe POS Staff Account Credentials:\nFull Name: ${createdStaffCreds.full_name}\nEmail: ${createdStaffCreds.email}\nPhone: ${createdStaffCreds.phone}\nInitial Password: ${createdStaffCreds.initialPassword}\nAssigned Role: ${createdStaffCreds.group_name || 'Unassigned'}\n\nPlease click the confirmation link sent to your email to verify your account, then sign in.`
     copyToClipboard(text, 'all')
   }
+
+  // Filter staff by search query
+  const filteredStaff = staffList.filter(s => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.toLowerCase()
+    const name = (s.full_name || '').toLowerCase()
+    const email = (s.email || '').toLowerCase()
+    const phone = (s.phone || '').toLowerCase()
+    const group = permissionGroups.find(g => g.id === s.permission_group_id)
+    const roleName = (group?.name || 'unassigned').toLowerCase()
+    return name.includes(q) || email.includes(q) || phone.includes(q) || roleName.includes(q)
+  })
+
+  // Metric stats
+  const totalStaff = staffList.length
+  const confirmedCount = staffList.filter(s => s.is_confirmed).length
+  const pendingCount = staffList.filter(s => !s.is_confirmed).length
+  const rolesCount = permissionGroups.length
 
   return (
     <div style={styles.container}>
@@ -178,57 +222,128 @@ export const StaffManagementView = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
+      {/* Header Banner with Blended Minimal Aesthetic Image */}
+      <div style={styles.headerBanner}>
+        {/* Blended Background Image Layer - No separate box */}
+        <div style={styles.headerBlendWrapper}>
+          <img 
+            src="/images/staff_workspace.jpg" 
+            alt="Cafe Shift Roster" 
+            style={styles.headerBlendImg}
+            loading="lazy"
+          />
+          <div style={styles.headerBlendGradient} />
+        </div>
+
+        <div style={styles.headerTextCol}>
           <div style={styles.badge}>
-            <Users size={15} />
-            <span>Super Admin Personnel Control</span>
+            <Users size={14} />
+            <span>Personnel &amp; Access Governance</span>
           </div>
           <h2 style={styles.title}>Staff / User Management</h2>
           <p style={styles.subtitle}>
-            Register cafe team members, generate email verification invites with initial passwords, and dynamically bind them to custom permission groups.
+            Manage your cafe workforce, assign modular permission roles, and track verification status.
           </p>
+
+          <div style={styles.headerActions}>
+            <button 
+              onClick={loadStaff} 
+              style={styles.refreshBtn}
+              title="Refresh directory"
+              disabled={loading}
+            >
+              <RefreshCw size={15} className={loading ? 'spin-anim' : ''} />
+              <span>Refresh Directory</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Metric Cards */}
+      <div style={styles.statsRow}>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIconBox, backgroundColor: 'rgba(98, 111, 72, 0.12)', color: 'var(--color-primary-active)' }}>
+            <Users size={18} />
+          </div>
+          <div>
+            <div style={styles.statValue}>{totalStaff}</div>
+            <div style={styles.statLabel}>Total Staff Members</div>
+          </div>
         </div>
 
-        <div style={styles.headerActions}>
-          <button 
-            onClick={loadStaff} 
-            style={styles.refreshBtn}
-            title="Refresh list"
-            disabled={loading}
-          >
-            <RefreshCw size={16} className={loading ? 'spin-anim' : ''} />
-            <span>Refresh</span>
-          </button>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIconBox, backgroundColor: 'rgba(46, 125, 50, 0.12)', color: '#2E7D32' }}>
+            <UserCheck size={18} />
+          </div>
+          <div>
+            <div style={styles.statValue}>{confirmedCount}</div>
+            <div style={styles.statLabel}>Verified &amp; Active</div>
+          </div>
+        </div>
 
-          <button onClick={handleOpenCreateModal} style={styles.createBtn}>
-            <UserPlus size={18} />
-            <span>+ Create Staff &amp; Send Invite</span>
-          </button>
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIconBox, backgroundColor: 'rgba(178, 106, 0, 0.12)', color: '#B26A00' }}>
+            <Clock size={18} />
+          </div>
+          <div>
+            <div style={styles.statValue}>{pendingCount}</div>
+            <div style={styles.statLabel}>Awaiting Confirmation</div>
+          </div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={{ ...styles.statIconBox, backgroundColor: 'rgba(62, 107, 137, 0.12)', color: '#3E6B89' }}>
+            <Layers size={18} />
+          </div>
+          <div>
+            <div style={styles.statValue}>{rolesCount}</div>
+            <div style={styles.statLabel}>Active Role Profiles</div>
+          </div>
         </div>
       </div>
 
       {/* Staff Table Section */}
       <div style={styles.tableCard}>
-        <div style={styles.tableHeader}>
+        <div style={styles.tableToolbar}>
           <div>
-            <h3 style={styles.tableTitle}>Staff Directory ({staffList.length} members)</h3>
-            <p style={styles.tableDesc}>Active personnel directory, module permissions, and terminal access</p>
+            <h3 style={styles.tableTitle}>Staff Directory</h3>
+            <p style={styles.tableDesc}>Active personnel directory, assigned role boundaries, and credentials</p>
+          </div>
+
+          <div style={styles.toolbarActions}>
+            {/* Quick Search */}
+            <div style={styles.searchWrapper}>
+              <Search size={15} color="var(--color-text-muted)" style={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder="Search by name, email, role..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
+            </div>
+
+            {/* Create Staff Member Button next to search */}
+            <button onClick={handleOpenCreateModal} style={styles.createBtn}>
+              <UserPlus size={16} />
+              <span>+ Create Staff Member</span>
+            </button>
           </div>
         </div>
 
         {loading ? (
           <div style={styles.emptyState}>
-            <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-primary)' }} />
-            <p style={{ marginTop: '12px', color: 'var(--color-text-muted)' }}>Loading staff directory...</p>
+            <RefreshCw size={30} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-primary)' }} />
+            <p style={{ marginTop: '12px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Loading staff directory...</p>
           </div>
-        ) : staffList.length === 0 ? (
+        ) : filteredStaff.length === 0 ? (
           <div style={styles.emptyState}>
-            <Users size={44} color="var(--color-text-muted)" />
-            <p style={{ marginTop: '12px', fontSize: '1rem', fontWeight: '600' }}>No staff members created yet</p>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem', maxWidth: '380px', marginTop: '6px' }}>
-              Click "+ Create Staff &amp; Send Invite" above to register cashiers, shift managers, and inventory staff with automatic email confirmation.
+            <Users size={40} color="var(--color-text-muted)" />
+            <p style={{ marginTop: '12px', fontSize: '1rem', fontWeight: '700' }}>
+              {searchQuery ? 'No matching staff found' : 'No staff members registered yet'}
+            </p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.86rem', maxWidth: '360px', marginTop: '6px' }}>
+              {searchQuery ? 'Try adjusting your search keywords' : 'Click "+ Create Staff Member" above to invite cashiers and managers.'}
             </p>
           </div>
         ) : (
@@ -239,13 +354,14 @@ export const StaffManagementView = () => {
                   <th style={styles.th}>Staff Member</th>
                   <th style={styles.th}>Phone Number</th>
                   <th style={styles.th}>Assigned Role</th>
+                  <th style={styles.th}>Confirmation</th>
                   <th style={styles.th}>Joined Date</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {staffList.map((st) => {
-                  const group = permissionGroups.find(g => g.id === st.permission_group_id) || permissionGroups[1] || permissionGroups[0]
+                {filteredStaff.map((st) => {
+                  const group = permissionGroups.find(g => g.id === st.permission_group_id) || null
                   const isCurrent = currentUser?.id === st.id
 
                   return (
@@ -255,7 +371,7 @@ export const StaffManagementView = () => {
                         <div style={styles.userCell}>
                           <div style={{
                             ...styles.avatar,
-                            backgroundColor: group?.color || 'var(--color-primary)'
+                            backgroundColor: group?.color || '#7A7A7A'
                           }}>
                             {(st.full_name || st.email || 'U').charAt(0).toUpperCase()}
                           </div>
@@ -272,26 +388,37 @@ export const StaffManagementView = () => {
                         </div>
                       </td>
 
-                      {/* Phone */}
+                      {/* Phone Number with Click-to-Edit */}
                       <td style={styles.td}>
-                        <div style={styles.phoneCell}>
-                          <Phone size={14} color="var(--color-text-muted)" />
-                          <span>{st.phone || 'N/A'}</span>
+                        <div 
+                          style={styles.phoneClickable}
+                          onClick={() => {
+                            setPhoneEditingStaff(st)
+                            setEditingPhoneInput(st.phone || '+880 17')
+                          }}
+                          title="Click to edit or set phone number"
+                        >
+                          <Phone size={13} color="var(--color-primary-active)" />
+                          <span style={st.phone ? styles.phoneText : styles.phoneEmptyText}>
+                            {st.phone || '+ Add phone'}
+                          </span>
                         </div>
                       </td>
 
                       {/* Assigned Role (Permission Group Dropdown) */}
                       <td style={styles.td}>
                         <select
-                          value={st.permission_group_id || 'grp_staff'}
+                          value={st.permission_group_id || ''}
                           onChange={(e) => handleGroupChange(st.id, e.target.value)}
                           style={{
                             ...styles.groupSelect,
-                            backgroundColor: group?.bgColor || 'rgba(98, 111, 72, 0.12)',
-                            borderColor: group?.color || 'var(--color-border)',
-                            color: group?.color || 'var(--color-primary-active)'
+                            backgroundColor: group ? (group.bgColor || 'rgba(98, 111, 72, 0.12)') : 'rgba(0, 0, 0, 0.04)',
+                            borderColor: group ? (group.color || 'var(--color-border)') : 'var(--color-border)',
+                            color: group ? (group.color || 'var(--color-primary-active)') : 'var(--color-text-muted)',
+                            fontWeight: group ? '700' : '500',
                           }}
                         >
+                          <option value="">-- No Role Assigned --</option>
                           {permissionGroups.map(g => (
                             <option key={g.id} value={g.id}>
                               {g.name}
@@ -300,7 +427,22 @@ export const StaffManagementView = () => {
                         </select>
                       </td>
 
-                      {/* Date */}
+                      {/* Confirmation Status */}
+                      <td style={styles.td}>
+                        {st.is_confirmed ? (
+                          <span style={styles.confirmedBadge}>
+                            <CheckCircle2 size={13} />
+                            <span>Confirmed</span>
+                          </span>
+                        ) : (
+                          <span style={styles.pendingBadge}>
+                            <Clock size={13} />
+                            <span>Pending Invite</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Joined Date */}
                       <td style={styles.td}>
                         <span style={styles.dateText}>
                           {st.created_at ? new Date(st.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
@@ -312,13 +454,13 @@ export const StaffManagementView = () => {
                         <div style={styles.actionButtons}>
                           <button
                             onClick={() => {
-                              const credsText = `Cafe POS Credentials:\nName: ${st.full_name}\nEmail: ${st.email}\nPhone: ${st.phone}\nGroup: ${group?.name}`
+                              const credsText = `Cafe POS Credentials:\nName: ${st.full_name}\nEmail: ${st.email}\nPhone: ${st.phone || 'N/A'}\nRole: ${group?.name || 'Unassigned'}`
                               copyToClipboard(credsText, `row_${st.id}`)
                             }}
                             style={styles.actionBtn}
-                            title="Copy staff info"
+                            title="Copy staff credentials info"
                           >
-                            {copiedKey === `row_${st.id}` ? <Check size={15} color="var(--color-success)" /> : <Copy size={15} />}
+                            {copiedKey === `row_${st.id}` ? <Check size={14} color="var(--color-success)" /> : <Copy size={14} />}
                           </button>
 
                           <button
@@ -329,9 +471,9 @@ export const StaffManagementView = () => {
                               color: isCurrent ? 'var(--color-border)' : 'var(--color-danger)',
                               cursor: isCurrent ? 'not-allowed' : 'pointer'
                             }}
-                            title={isCurrent ? 'Cannot delete your own account' : 'Delete staff record'}
+                            title={isCurrent ? 'Cannot delete your own active account' : 'Delete staff record'}
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -351,11 +493,11 @@ export const StaffManagementView = () => {
             <div style={styles.modalHeader}>
               <div style={styles.modalHeaderLeft}>
                 <div style={styles.modalIconBox}>
-                  <UserPlus size={22} color="#FFFFFF" />
+                  <UserPlus size={20} color="#FFFFFF" />
                 </div>
                 <div>
-                  <h3 style={styles.modalTitle}>Create Staff &amp; Send Email Invite</h3>
-                  <p style={styles.modalSubtitle}>An account verification email will be dispatched to the user</p>
+                  <h3 style={styles.modalTitle}>Create Staff &amp; Send Invite</h3>
+                  <p style={styles.modalSubtitle}>An account verification link will be dispatched to their inbox</p>
                 </div>
               </div>
               <button onClick={() => setIsCreateModalOpen(false)} style={styles.closeBtn}>×</button>
@@ -379,35 +521,35 @@ export const StaffManagementView = () => {
               <div style={styles.formGroup}>
                 <label style={styles.label}>Email Address *</label>
                 <div style={styles.inputWithIcon}>
-                  <Mail size={16} color="var(--color-text-muted)" style={styles.fieldIcon} />
+                  <Mail size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type="email"
                     placeholder="e.g. tanvir@cafepos.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    style={{ ...styles.input, paddingLeft: '38px' }}
+                    style={{ ...styles.input, paddingLeft: '36px' }}
                   />
                 </div>
               </div>
 
               {/* Phone Number */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>Phone Number (Staff Record) *</label>
+                <label style={styles.label}>Phone Number (Frontline Contact) *</label>
                 <div style={styles.inputWithIcon}>
-                  <Phone size={16} color="var(--color-text-muted)" style={styles.fieldIcon} />
+                  <Phone size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type="tel"
                     placeholder="+880 1712 345678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
-                    style={{ ...styles.input, paddingLeft: '38px' }}
+                    style={{ ...styles.input, paddingLeft: '36px' }}
                   />
                 </div>
               </div>
 
-              {/* Initial Temporary Password with Generator */}
+              {/* Initial Password with Generator */}
               <div style={styles.formGroup}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <label style={styles.label}>Initial Password (User Receives This) *</label>
@@ -416,44 +558,45 @@ export const StaffManagementView = () => {
                     onClick={generateRandomPassword}
                     style={styles.genBtn}
                   >
-                    <Key size={13} />
+                    <Key size={12} />
                     <span>Generate Strong</span>
                   </button>
                 </div>
 
                 <div style={styles.inputWithIcon}>
-                  <Lock size={16} color="var(--color-text-muted)" style={styles.fieldIcon} />
+                  <Lock size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={initialPassword}
                     onChange={(e) => setInitialPassword(e.target.value)}
                     required
-                    style={{ ...styles.input, paddingLeft: '38px', paddingRight: '40px' }}
+                    style={{ ...styles.input, paddingLeft: '36px', paddingRight: '40px' }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     style={styles.eyeBtn}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
                 <span style={styles.fieldHint}>
-                  User can change this password anytime inside their User Settings.
+                  User can change this password anytime in their User Settings.
                 </span>
               </div>
 
-              {/* Assigned Role / Permission Group */}
+              {/* Assigned Role */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>Assign Role (Permission Group) *</label>
+                <label style={styles.label}>Assign Role (Permission Group)</label>
                 <select
                   value={selectedGroupId}
                   onChange={(e) => setSelectedGroupId(e.target.value)}
                   style={styles.selectInput}
                 >
+                  <option value="">-- No Role Assigned (Unassigned) --</option>
                   {permissionGroups.map(g => (
                     <option key={g.id} value={g.id}>
-                      {g.name} — {g.description ? g.description.substring(0, 60) + '...' : ''}
+                      {g.name} — {g.description ? g.description.substring(0, 50) + '...' : ''}
                     </option>
                   ))}
                 </select>
@@ -475,13 +618,13 @@ export const StaffManagementView = () => {
                 >
                   {isSubmitting ? (
                     <>
-                      <RefreshCw size={16} className="spin-anim" />
+                      <RefreshCw size={15} className="spin-anim" />
                       <span>Sending Invite...</span>
                     </>
                   ) : (
                     <>
-                      <Mail size={16} />
-                      <span>Send Invite &amp; Create Account</span>
+                      <Mail size={15} />
+                      <span>Create Account &amp; Send Invite</span>
                     </>
                   )}
                 </button>
@@ -494,15 +637,15 @@ export const StaffManagementView = () => {
       {/* Success Card Modal: Copy Credentials */}
       {createdStaffCreds && (
         <div style={styles.modalOverlay}>
-          <div style={{ ...styles.modalCard, maxWidth: '520px' }}>
+          <div style={{ ...styles.modalCard, maxWidth: '500px' }}>
             <div style={{ ...styles.modalHeader, borderBottom: 'none', paddingBottom: '8px' }}>
               <div style={styles.modalHeaderLeft}>
                 <div style={{ ...styles.modalIconBox, backgroundColor: 'var(--color-success)' }}>
-                  <CheckCircle2 size={24} color="#FFFFFF" />
+                  <CheckCircle2 size={22} color="#FFFFFF" />
                 </div>
                 <div>
                   <h3 style={styles.modalTitle}>Staff Account Created!</h3>
-                  <p style={styles.modalSubtitle}>Verification &amp; invitation email has been dispatched</p>
+                  <p style={styles.modalSubtitle}>Invitation email dispatched with initial credentials</p>
                 </div>
               </div>
               <button onClick={() => setCreatedStaffCreds(null)} style={styles.closeBtn}>×</button>
@@ -510,10 +653,9 @@ export const StaffManagementView = () => {
 
             <div style={styles.credsBox}>
               <div style={styles.credsNotice}>
-                <Mail size={16} color="var(--color-primary-active)" />
+                <Mail size={15} color="var(--color-primary-active)" />
                 <span>
-                  A confirmation email with verification link and the initial password below was dispatched to <strong>{createdStaffCreds.email}</strong>. 
-                  When the user clicks the confirmation link, it directs them straight to the terminal sign-in page.
+                  A confirmation email with verification link was dispatched to <strong>{createdStaffCreds.email}</strong>. 
                 </span>
               </div>
 
@@ -530,37 +672,41 @@ export const StaffManagementView = () => {
                 <span style={styles.credValue}>{createdStaffCreds.phone}</span>
               </div>
               <div style={styles.credRow}>
-                <span style={styles.credLabel}>Assigned Group:</span>
+                <span style={styles.credLabel}>Assigned Role:</span>
                 <span style={{ ...styles.credValue, fontWeight: '700', color: 'var(--color-primary-active)' }}>
-                  {createdStaffCreds.group_name}
+                  {createdStaffCreds.group_name || 'No Role Assigned'}
                 </span>
               </div>
-              <div style={{ ...styles.credRow, backgroundColor: 'rgba(98, 111, 72, 0.08)', padding: '10px 14px', borderRadius: '8px' }}>
+              <div style={styles.credRow}>
                 <span style={styles.credLabel}>Initial Password:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <code style={styles.codeText}>{createdStaffCreds.initialPassword}</code>
-                  <button
-                    onClick={() => copyToClipboard(createdStaffCreds.initialPassword, 'pwd_box')}
-                    style={styles.iconMiniBtn}
-                    title="Copy Password"
-                  >
-                    {copiedKey === 'pwd_box' ? <Check size={14} color="var(--color-success)" /> : <Copy size={14} />}
-                  </button>
-                </div>
+                <span style={{ ...styles.credValue, fontFamily: 'monospace', fontWeight: '700', color: '#B26A00' }}>
+                  {createdStaffCreds.initialPassword}
+                </span>
               </div>
             </div>
 
             <div style={styles.modalActions}>
               <button
+                type="button"
                 onClick={copyAllCredentials}
                 style={styles.copyAllBtn}
               >
-                {copiedKey === 'all' ? <Check size={16} color="var(--color-success)" /> : <Copy size={16} />}
-                <span>{copiedKey === 'all' ? 'Copied!' : 'Copy Invitation Info'}</span>
+                {copiedKey === 'all' ? (
+                  <>
+                    <Check size={15} color="var(--color-success)" />
+                    <span>Credentials Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={15} />
+                    <span>Copy All Credentials</span>
+                  </>
+                )}
               </button>
               <button
+                type="button"
                 onClick={() => setCreatedStaffCreds(null)}
-                style={styles.submitBtn}
+                style={styles.doneBtn}
               >
                 Done
               </button>
@@ -573,32 +719,87 @@ export const StaffManagementView = () => {
       {staffToDelete && (
         <div style={styles.modalOverlay}>
           <div style={{ ...styles.modalCard, maxWidth: '440px' }}>
-            <div style={styles.modalHeader}>
+            <div style={{ ...styles.modalHeader, borderBottom: 'none' }}>
               <div style={styles.modalHeaderLeft}>
                 <div style={{ ...styles.modalIconBox, backgroundColor: 'var(--color-danger)' }}>
-                  <Trash2 size={22} color="#FFFFFF" />
+                  <Trash2 size={20} color="#FFFFFF" />
                 </div>
                 <div>
-                  <h3 style={styles.modalTitle}>Remove Staff Record</h3>
-                  <p style={styles.modalSubtitle}>Irreversible Super Admin action</p>
+                  <h3 style={styles.modalTitle}>Delete Staff Account</h3>
+                  <p style={styles.modalSubtitle}>This action cannot be undone</p>
                 </div>
               </div>
-              <button onClick={() => setStaffToDelete(null)} style={styles.closeBtn}>×</button>
             </div>
 
-            <p style={{ fontSize: '0.94rem', color: 'var(--color-text-main)', margin: '16px 0', lineHeight: 1.5 }}>
-              Are you sure you want to delete staff account <strong>{staffToDelete.full_name || staffToDelete.email}</strong>?
-              They will immediately lose terminal access.
+            <p style={{ fontSize: '0.88rem', color: 'var(--color-text-muted)', lineHeight: 1.5, margin: '14px 0 20px' }}>
+              Are you sure you want to permanently delete the staff record for <strong>{staffToDelete.full_name || staffToDelete.email}</strong>? 
+              They will immediately lose access to all terminal stations.
             </p>
 
             <div style={styles.modalActions}>
               <button onClick={() => setStaffToDelete(null)} style={styles.cancelBtn}>
                 Cancel
               </button>
-              <button onClick={handleDeleteStaff} style={styles.dangerBtn}>
-                Yes, Delete Record
+              <button onClick={handleDeleteStaff} style={styles.deleteConfirmBtn}>
+                Delete Account
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Edit Phone Modal */}
+      {phoneEditingStaff && (
+        <div style={styles.modalOverlay} onClick={() => setPhoneEditingStaff(null)}>
+          <div style={{ ...styles.modalCard, maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <div style={styles.modalHeaderLeft}>
+                <div style={{ ...styles.modalIconBox, backgroundColor: 'var(--color-primary)' }}>
+                  <Phone size={18} color="#FFFFFF" />
+                </div>
+                <div>
+                  <h3 style={styles.modalTitle}>Update Phone Number</h3>
+                  <p style={styles.modalSubtitle}>{phoneEditingStaff.full_name || phoneEditingStaff.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setPhoneEditingStaff(null)} style={styles.closeBtn}>×</button>
+            </div>
+
+            <form onSubmit={handleSavePhone} style={styles.modalForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Phone Number (Frontline Contact)</label>
+                <div style={styles.inputWithIcon}>
+                  <Phone size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
+                  <input
+                    type="tel"
+                    placeholder="+880 1712 345678"
+                    value={editingPhoneInput}
+                    onChange={(e) => setEditingPhoneInput(e.target.value)}
+                    required
+                    autoFocus
+                    style={{ ...styles.input, paddingLeft: '36px' }}
+                  />
+                </div>
+                <span style={styles.fieldHint}>Saved to staff directory records and Supabase profile.</span>
+              </div>
+
+              <div style={styles.modalActions}>
+                <button
+                  type="button"
+                  onClick={() => setPhoneEditingStaff(null)}
+                  style={styles.cancelBtn}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPhone}
+                  style={styles.submitBtn}
+                >
+                  {isSavingPhone ? 'Saving...' : 'Save Phone'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -608,9 +809,10 @@ export const StaffManagementView = () => {
 
 const styles = {
   container: {
-    maxWidth: '1240px',
+    maxWidth: '1280px',
     margin: '0 auto',
-    padding: '0 24px 60px',
+    padding: '24px 32px 64px',
+    width: '100%',
   },
   toast: {
     position: 'fixed',
@@ -629,95 +831,201 @@ const styles = {
     fontWeight: '600',
     maxWidth: '92vw',
   },
-  header: {
+  headerBanner: {
+    backgroundColor: 'var(--color-surface)',
+    border: '1.5px solid var(--color-border)',
+    borderRadius: '20px',
+    padding: '28px 32px',
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '20px',
-    marginBottom: '32px',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    marginBottom: '24px',
+    boxShadow: 'var(--shadow-sm)',
+    minHeight: '180px',
+  },
+  headerBlendWrapper: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '48%',
+    maxWidth: '520px',
+    minWidth: '260px',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    zIndex: 1,
+    WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.25) 20%, rgba(0, 0, 0, 0.85) 60%, black 100%)',
+    maskImage: 'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.25) 20%, rgba(0, 0, 0, 0.85) 60%, black 100%)',
+  },
+  headerBlendImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: 'center',
+    opacity: 0.9,
+    display: 'block',
+  },
+  headerBlendGradient: {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(to right, var(--color-surface) 0%, rgba(234, 226, 214, 0.35) 40%, transparent 100%)',
+    pointerEvents: 'none',
+  },
+  headerTextCol: {
+    position: 'relative',
+    zIndex: 2,
+    maxWidth: '640px',
   },
   badge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
     padding: '4px 12px',
-    backgroundColor: 'rgba(98, 111, 72, 0.14)',
+    backgroundColor: 'rgba(98, 111, 72, 0.12)',
     color: 'var(--color-primary-active)',
     borderRadius: 'var(--radius-full)',
     fontSize: '0.78rem',
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    marginBottom: '10px',
-  },
-  title: {
-    fontSize: '1.85rem',
-    fontWeight: '800',
-    color: 'var(--color-text-main)',
+    letterSpacing: '0.02em',
     marginBottom: '8px',
   },
+  title: {
+    fontSize: 'clamp(1.6rem, 2.5vw, 2.1rem)',
+    fontWeight: '800',
+    color: 'var(--color-text-main)',
+    letterSpacing: '-0.02em',
+    marginBottom: '6px',
+  },
   subtitle: {
-    fontSize: '0.94rem',
+    fontSize: '0.92rem',
     color: 'var(--color-text-muted)',
-    maxWidth: '720px',
-    lineHeight: 1.55,
+    maxWidth: '680px',
+    lineHeight: 1.5,
   },
   headerActions: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    marginTop: '6px',
+    gap: '10px',
   },
   refreshBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '10px 18px',
-    borderRadius: 'var(--radius-sm)',
+    gap: '6px',
+    padding: '9px 16px',
+    borderRadius: 'var(--radius-md)',
     border: '1.5px solid var(--color-border)',
     backgroundColor: 'var(--color-surface)',
     color: 'var(--color-text-main)',
     fontWeight: '600',
-    fontSize: '0.88rem',
+    fontSize: '0.86rem',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   createBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '10px 22px',
-    borderRadius: 'var(--radius-sm)',
+    gap: '7px',
+    padding: '9px 18px',
+    borderRadius: 'var(--radius-md)',
     border: 'none',
     backgroundColor: 'var(--color-primary)',
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: '0.92rem',
+    fontSize: '0.9rem',
     cursor: 'pointer',
-    boxShadow: 'var(--shadow-sm)',
+    boxShadow: '0 4px 12px rgba(98, 111, 72, 0.28)',
     transition: 'background 0.2s',
+  },
+  statsRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '16px',
+    marginBottom: '24px',
+  },
+  statCard: {
+    backgroundColor: 'var(--color-surface)',
+    border: '1.5px solid var(--color-border)',
+    borderRadius: '16px',
+    padding: '16px 18px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    boxShadow: 'var(--shadow-sm)',
+  },
+  statIconBox: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  statValue: {
+    fontSize: '1.4rem',
+    fontWeight: '800',
+    color: 'var(--color-text-main)',
+    lineHeight: 1.1,
+  },
+  statLabel: {
+    fontSize: '0.78rem',
+    color: 'var(--color-text-muted)',
+    fontWeight: '600',
+    marginTop: '2px',
   },
   tableCard: {
     backgroundColor: 'var(--color-surface)',
     border: '1.5px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
+    borderRadius: '18px',
     overflow: 'hidden',
     boxShadow: 'var(--shadow-sm)',
   },
-  tableHeader: {
-    padding: '24px 28px',
+  tableToolbar: {
+    padding: '20px 24px',
     borderBottom: '1px solid var(--color-border)',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '16px',
+  },
+  toolbarActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
   },
   tableTitle: {
-    fontSize: '1.2rem',
-    fontWeight: '700',
+    fontSize: '1.15rem',
+    fontWeight: '800',
     color: 'var(--color-text-main)',
-    marginBottom: '4px',
+    marginBottom: '3px',
   },
   tableDesc: {
-    fontSize: '0.85rem',
+    fontSize: '0.84rem',
     color: 'var(--color-text-muted)',
+  },
+  searchWrapper: {
+    position: 'relative',
+    minWidth: '260px',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    pointerEvents: 'none',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px 14px 8px 34px',
+    borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--color-border)',
+    backgroundColor: 'var(--color-bg)',
+    fontSize: '0.86rem',
+    color: 'var(--color-text-main)',
+    outline: 'none',
   },
   tableResponsive: {
     width: '100%',
@@ -734,10 +1042,10 @@ const styles = {
   },
   th: {
     padding: '14px 20px',
-    fontSize: '0.78rem',
+    fontSize: '0.76rem',
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.04em',
     color: 'var(--color-text-muted)',
   },
   trBody: {
@@ -745,8 +1053,8 @@ const styles = {
     transition: 'background 0.15s',
   },
   td: {
-    padding: '16px 20px',
-    fontSize: '0.9rem',
+    padding: '14px 20px',
+    fontSize: '0.88rem',
     color: 'var(--color-text-main)',
     verticalAlign: 'middle',
   },
@@ -756,15 +1064,15 @@ const styles = {
     gap: '12px',
   },
   avatar: {
-    width: '38px',
-    height: '38px',
+    width: '36px',
+    height: '36px',
     borderRadius: '50%',
     color: '#FFFFFF',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: '700',
-    fontSize: '0.95rem',
+    fontSize: '0.9rem',
     flexShrink: 0,
   },
   userName: {
@@ -773,6 +1081,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    fontSize: '0.9rem',
   },
   youBadge: {
     fontSize: '0.68rem',
@@ -783,50 +1092,83 @@ const styles = {
     fontWeight: '700',
   },
   userEmail: {
-    fontSize: '0.8rem',
+    fontSize: '0.78rem',
     color: 'var(--color-text-muted)',
     marginTop: '2px',
   },
   phoneCell: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    fontSize: '0.86rem',
+    gap: '6px',
+    fontSize: '0.84rem',
     fontWeight: '500',
+    color: 'var(--color-text-main)',
+  },
+  phoneClickable: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '0.84rem',
+    fontWeight: '500',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+  },
+  phoneText: {
+    color: 'var(--color-text-main)',
+    fontWeight: '600',
+  },
+  phoneEmptyText: {
+    color: 'var(--color-primary-active)',
+    fontSize: '0.78rem',
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
   groupSelect: {
-    padding: '6px 10px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1.5px solid',
-    fontSize: '0.84rem',
-    fontWeight: '700',
+    padding: '5px 10px',
+    borderRadius: '6px',
+    border: '1px solid',
+    fontSize: '0.82rem',
     cursor: 'pointer',
     outline: 'none',
   },
-  rolePill: {
+  confirmedBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '4px 10px',
+    padding: '3px 8px',
     borderRadius: 'var(--radius-full)',
     fontSize: '0.74rem',
     fontWeight: '700',
-    letterSpacing: '0.04em',
+    backgroundColor: 'var(--color-success-bg)',
+    color: 'var(--color-success)',
+  },
+  pendingBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '3px 8px',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '0.74rem',
+    fontWeight: '700',
+    backgroundColor: 'rgba(178, 106, 0, 0.12)',
+    color: '#B26A00',
   },
   dateText: {
-    fontSize: '0.82rem',
+    fontSize: '0.8rem',
     color: 'var(--color-text-muted)',
   },
   actionButtons: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: '8px',
+    gap: '6px',
   },
   actionBtn: {
-    width: '32px',
-    height: '32px',
-    borderRadius: 'var(--radius-sm)',
+    width: '30px',
+    height: '30px',
+    borderRadius: '6px',
     border: '1px solid var(--color-border)',
     backgroundColor: 'var(--color-surface)',
     color: 'var(--color-text-main)',
@@ -837,55 +1179,54 @@ const styles = {
     transition: 'all 0.15s',
   },
   emptyState: {
-    padding: '56px 20px',
+    padding: '48px 20px',
     textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Modal styles
   modalOverlay: {
     position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(34, 42, 30, 0.65)',
-    backdropFilter: 'blur(4px)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backdropFilter: 'blur(5px)',
     zIndex: 1100,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: '20px',
-    animation: 'fadeIn 0.2s ease',
   },
   modalCard: {
     backgroundColor: 'var(--color-surface)',
-    borderRadius: 'var(--radius-lg)',
     border: '1.5px solid var(--color-border)',
-    boxShadow: 'var(--shadow-lg)',
+    borderRadius: '20px',
+    padding: '28px 30px',
+    maxWidth: '480px',
     width: '100%',
-    maxWidth: '540px',
-    padding: '28px',
-    animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    boxShadow: 'var(--shadow-lg)',
   },
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     borderBottom: '1px solid var(--color-border)',
-    paddingBottom: '18px',
-    marginBottom: '20px',
+    paddingBottom: '16px',
+    marginBottom: '18px',
   },
   modalHeaderLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
+    gap: '12px',
   },
   modalIconBox: {
-    width: '42px',
-    height: '42px',
+    width: '38px',
+    height: '38px',
     borderRadius: '10px',
     backgroundColor: 'var(--color-primary)',
     display: 'flex',
@@ -897,44 +1238,45 @@ const styles = {
     fontSize: '1.2rem',
     fontWeight: '800',
     color: 'var(--color-text-main)',
+    marginBottom: '3px',
   },
   modalSubtitle: {
     fontSize: '0.82rem',
     color: 'var(--color-text-muted)',
-    marginTop: '2px',
   },
   closeBtn: {
     background: 'none',
     border: 'none',
-    fontSize: '1.5rem',
+    fontSize: '1.4rem',
     lineHeight: 1,
     color: 'var(--color-text-muted)',
     cursor: 'pointer',
+    padding: '4px',
   },
   modalForm: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: '14px',
   },
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    gap: '5px',
   },
   label: {
-    fontSize: '0.82rem',
+    fontSize: '0.8rem',
     fontWeight: '700',
     color: 'var(--color-text-main)',
   },
   input: {
-    width: '100%',
-    padding: '10px 14px',
-    borderRadius: 'var(--radius-sm)',
+    padding: '9px 12px',
+    borderRadius: '8px',
     border: '1.5px solid var(--color-border)',
     backgroundColor: 'var(--color-bg)',
-    fontSize: '0.92rem',
     color: 'var(--color-text-main)',
+    fontSize: '0.88rem',
     outline: 'none',
+    width: '100%',
   },
   inputWithIcon: {
     position: 'relative',
@@ -943,31 +1285,30 @@ const styles = {
   },
   fieldIcon: {
     position: 'absolute',
-    left: '12px',
+    left: '11px',
     pointerEvents: 'none',
+  },
+  genBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    background: 'none',
+    border: '1px solid var(--color-border)',
+    borderRadius: '4px',
+    padding: '2px 7px',
+    fontSize: '0.72rem',
+    fontWeight: '700',
+    color: 'var(--color-primary-active)',
+    cursor: 'pointer',
   },
   eyeBtn: {
     position: 'absolute',
-    right: '12px',
+    right: '10px',
     background: 'none',
     border: 'none',
     color: 'var(--color-text-muted)',
     cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-primary-active)',
-    fontSize: '0.78rem',
-    fontWeight: '700',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '2px 4px',
+    padding: '4px',
   },
   fieldHint: {
     fontSize: '0.74rem',
@@ -975,120 +1316,106 @@ const styles = {
     marginTop: '2px',
   },
   selectInput: {
-    width: '100%',
-    padding: '10px 14px',
-    borderRadius: 'var(--radius-sm)',
+    padding: '9px 12px',
+    borderRadius: '8px',
     border: '1.5px solid var(--color-border)',
     backgroundColor: 'var(--color-bg)',
-    fontSize: '0.9rem',
     color: 'var(--color-text-main)',
-    fontWeight: '600',
+    fontSize: '0.88rem',
     outline: 'none',
-    cursor: 'pointer',
+    width: '100%',
   },
   modalActions: {
     display: 'flex',
     justifyContent: 'flex-end',
-    gap: '12px',
-    marginTop: '10px',
+    gap: '10px',
+    marginTop: '12px',
   },
   cancelBtn: {
-    padding: '10px 20px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1.5px solid var(--color-border)',
-    backgroundColor: 'var(--color-surface)',
-    color: 'var(--color-text-main)',
+    padding: '9px 16px',
+    backgroundColor: 'transparent',
+    border: '1px solid var(--color-border)',
+    borderRadius: '8px',
+    fontSize: '0.86rem',
     fontWeight: '600',
-    fontSize: '0.88rem',
+    color: 'var(--color-text-main)',
     cursor: 'pointer',
   },
   submitBtn: {
-    padding: '10px 22px',
-    borderRadius: 'var(--radius-sm)',
-    border: 'none',
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: '0.9rem',
-    cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-  },
-  dangerBtn: {
-    padding: '10px 20px',
-    borderRadius: 'var(--radius-sm)',
+    gap: '6px',
+    padding: '9px 18px',
+    backgroundColor: 'var(--color-primary)',
+    color: '#FFF',
     border: 'none',
-    backgroundColor: 'var(--color-danger)',
-    color: '#FFFFFF',
+    borderRadius: '8px',
+    fontSize: '0.86rem',
     fontWeight: '700',
-    fontSize: '0.88rem',
     cursor: 'pointer',
   },
   credsBox: {
     backgroundColor: 'var(--color-bg)',
     border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
+    borderRadius: '12px',
     padding: '16px',
+    marginBottom: '16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '8px',
   },
   credsNotice: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '10px',
+    gap: '8px',
     fontSize: '0.82rem',
-    color: 'var(--color-text-main)',
-    lineHeight: 1.45,
-    backgroundColor: 'rgba(98, 111, 72, 0.1)',
-    padding: '10px 12px',
-    borderRadius: '6px',
+    color: 'var(--color-text-muted)',
+    marginBottom: '6px',
+    lineHeight: 1.4,
   },
   credRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    fontSize: '0.88rem',
+    fontSize: '0.84rem',
   },
   credLabel: {
     color: 'var(--color-text-muted)',
-    fontWeight: '600',
   },
   credValue: {
     color: 'var(--color-text-main)',
     fontWeight: '600',
   },
-  codeText: {
-    fontFamily: 'monospace',
-    fontWeight: '700',
-    fontSize: '0.92rem',
-    backgroundColor: 'var(--color-surface)',
-    padding: '3px 8px',
-    borderRadius: '4px',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-primary-active)',
-  },
-  iconMiniBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '4px',
-  },
   copyAllBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '10px 18px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1.5px solid var(--color-primary)',
-    backgroundColor: 'rgba(98, 111, 72, 0.08)',
-    color: 'var(--color-primary-active)',
+    gap: '6px',
+    padding: '9px 16px',
+    backgroundColor: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    borderRadius: '8px',
+    fontSize: '0.86rem',
     fontWeight: '700',
-    fontSize: '0.88rem',
+    cursor: 'pointer',
+    color: 'var(--color-text-main)',
+  },
+  doneBtn: {
+    padding: '9px 20px',
+    backgroundColor: 'var(--color-primary)',
+    color: '#FFF',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.86rem',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+  deleteConfirmBtn: {
+    padding: '9px 18px',
+    backgroundColor: 'var(--color-danger)',
+    color: '#FFF',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.86rem',
+    fontWeight: '700',
     cursor: 'pointer',
   }
 }
