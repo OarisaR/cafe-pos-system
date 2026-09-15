@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { 
   ShoppingBag, 
   Grid, 
@@ -6,206 +6,179 @@ import {
   Package, 
   BookOpen, 
   TrendingUp, 
-  Lock, 
-  Unlock, 
+  LayoutDashboard, 
+  Settings, 
+  Sparkles, 
   ArrowRight,
   ShieldCheck,
-  Clock
+  CheckCircle2,
+  Users,
+  UserCheck
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { MODULES, MODULE_CONFIG } from '../../constants/rbac'
+import { AdminSidebar } from '../Dashboard/AdminSidebar'
+import { StaffManagementView } from '../Dashboard/StaffManagementView'
+import { PermissionGroupsView } from '../Dashboard/PermissionGroupsView'
+import { UserSettingsView } from '../Dashboard/UserSettingsView'
+import { StaffTerminalView } from '../Dashboard/StaffTerminalView'
 
-export const RoleDashboardView = ({ onSelectModule }) => {
-  const { user, profile, role, canAccess } = useAuth()
+export const RoleDashboardView = () => {
+  const { currentModule, setCurrentModule, role, currentRoleInfo, isSuperAdmin, profile, user } = useAuth()
 
-  const modules = [
-    {
-      id: 'pos',
-      title: 'Counter POS & Orders',
-      subtitle: 'Create & manage Dine-in, Takeaway and Pick-up receipts with custom drink notes',
-      icon: ShoppingBag,
-      statusText: 'Touchscreen Register',
-      color: 'var(--color-primary)'
-    },
-    {
-      id: 'tables',
-      title: 'Floor & Table Map',
-      subtitle: 'Live visual floor occupancy, table merging for groups, and auto-release on payment',
-      icon: Grid,
-      statusText: 'Live Realtime Status',
-      color: 'var(--color-primary)'
-    },
-    {
-      id: 'billing',
-      title: 'Billing & Payments',
-      subtitle: 'Itemized bills, local VAT calculations, cash change return and bKash/Nagad QR',
-      icon: Receipt,
-      statusText: 'Fast Thermal Print',
-      color: 'var(--color-primary)'
-    },
-    {
-      id: 'inventory',
-      title: 'Ingredient Inventory',
-      subtitle: 'Real-time stock tracking with Low, Moderate, and High levels and reorder alerts',
-      icon: Package,
-      statusText: 'Stock Audit & Logs',
-      color: '#626F48'
-    },
-    {
-      id: 'menu',
-      title: 'Menu & Recipe BOM',
-      subtitle: 'Link menu beverages to raw ingredients for automatic cup-cost and margin calculation',
-      icon: BookOpen,
-      statusText: 'Recipe Cost Link',
-      color: '#626F48'
-    },
-    {
-      id: 'profit',
-      title: 'Gross Margin & Profit',
-      subtitle: 'Track daily gross profit margins, real-time COGS deductions, and sales summaries',
-      icon: TrendingUp,
-      statusText: 'Financial Reporting',
-      color: '#626F48'
+  // Find module metadata
+  const currentConfig = MODULE_CONFIG.find(m => m.id === currentModule) || MODULE_CONFIG[0]
+
+  // Render module content based on user role
+  const renderContent = () => {
+    // 1. Regular Staff / Non-SuperAdmin Users
+    // "ar user toh staff management page dekhbe na emne jst user e rjnno ekta without backend ui e direct koiro nahoi"
+    if (!isSuperAdmin) {
+      if (currentModule === MODULES.USER_SETTINGS) {
+        return <UserSettingsView />
+      }
+      // Direct operational staff terminal without backend complexity!
+      return (
+        <StaffTerminalView 
+          activeTab={currentModule} 
+          onSwitchTab={(tab) => setCurrentModule(tab)} 
+        />
+      )
     }
-  ]
 
-  return (
-    <section style={styles.container}>
-      {/* Welcome Banner */}
-      <div style={styles.banner}>
-        <div style={styles.bannerLeft}>
-          <div style={styles.rolePill}>
-            <ShieldCheck size={16} />
-            <span>Active Shift: {role === 'admin' ? 'Cafe Owner / Administrator' : 'Frontline Cashier'}</span>
-          </div>
-          <h2 style={styles.welcomeTitle}>
-            Welcome back, {profile?.full_name || user?.email}
-          </h2>
-          <p style={styles.bannerSubtitle}>
-            {role === 'admin' 
-              ? 'You have unrestricted access to all counter operations, food costing, stock levels, and financial analytics.'
-              : 'Your register terminal is ready for guest seating, instant counter orders, and bill settlements.'}
-          </p>
-        </div>
+    // 2. Super Admin Views
+    switch (currentModule) {
+      case MODULES.STAFF:
+        return <StaffManagementView />
 
-        <div style={styles.statsCard}>
-          <div style={styles.statLabel}>Session Security</div>
-          <div style={styles.statValue}>Active &amp; Protected</div>
-          <div style={styles.statSub}>
-            <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
-            20-minute idle auto-lock enabled
-          </div>
-        </div>
-      </div>
+      case MODULES.PERMISSIONS:
+        return <PermissionGroupsView />
 
-      {/* Modules Matrix */}
-      <div style={styles.matrixHeader}>
-        <div>
-          <h3 style={styles.matrixTitle}>Operational Modules</h3>
-          <p style={styles.matrixDesc}>
-            {role === 'admin' 
-              ? 'All business modules unlocked for administration' 
-              : 'Frontline counter modules unlocked for your shift'}
-          </p>
-        </div>
-      </div>
+      case MODULES.USER_SETTINGS:
+        return <UserSettingsView />
 
-      <div style={styles.grid}>
-        {modules.map((m) => {
-          const Icon = m.icon
-          const hasAccess = canAccess(m.id)
-
-          return (
-            <div 
-              key={m.id}
-              style={{
-                ...styles.moduleCard,
-                opacity: hasAccess ? 1 : 0.65,
-                borderColor: hasAccess ? 'var(--color-border)' : 'rgba(220, 211, 196, 0.4)'
-              }}
-            >
-              <div style={styles.cardTop}>
-                <div 
-                  style={{
-                    ...styles.moduleIconBox,
-                    backgroundColor: hasAccess ? m.color : 'var(--color-light)',
-                    color: hasAccess ? '#FFFFFF' : 'var(--color-text-muted)'
-                  }}
-                >
-                  <Icon size={24} />
-                </div>
-
-                <div>
-                  {hasAccess ? (
-                    <span style={styles.accessBadgeUnlocked}>
-                      <Unlock size={12} />
-                      <span>Ready</span>
-                    </span>
-                  ) : (
-                    <span style={styles.accessBadgeLocked}>
-                      <Lock size={12} />
-                      <span>Owner Only</span>
-                    </span>
-                  )}
-                </div>
+      // Placeholders for other Super Admin sidebar buttons as requested:
+      // "pashe sidebar e ja ja superadmin er option jst option rakhio kno kaj korio na option gulai"
+      default:
+        return (
+          <div style={styles.placeholderContainer}>
+            <div style={styles.placeholderCard}>
+              <div style={styles.placeholderIconBox}>
+                <Sparkles size={36} color="var(--color-primary-active)" />
               </div>
 
-              <h4 style={styles.modTitle}>{m.title}</h4>
-              <p style={styles.modSubtitle}>{m.subtitle}</p>
+              <div style={styles.placeholderBadge}>
+                <ShieldCheck size={14} />
+                <span>Super Admin Module Slot</span>
+              </div>
 
-              <div style={styles.cardBottom}>
-                <span style={styles.statusBadge}>{m.statusText}</span>
+              <h2 style={styles.placeholderTitle}>{currentConfig.title}</h2>
+              <p style={styles.placeholderDesc}>
+                {currentConfig.description}
+              </p>
+
+              <div style={styles.infoBox}>
+                <div style={styles.infoBoxTitle}>Backend Integration Status</div>
+                <p style={styles.infoBoxText}>
+                  This navigation item is configured for future POS engine expansion. 
+                  Live staff accounts, email invitation dispatch, phone records, and dynamic permission matrices 
+                  are active in <strong>User Management</strong> and <strong>Permission Groups</strong>.
+                </p>
+              </div>
+
+              <div style={styles.quickActions}>
+                <button
+                  onClick={() => setCurrentModule(MODULES.STAFF)}
+                  style={styles.actionBtnPrimary}
+                >
+                  <Users size={16} />
+                  <span>Open Staff / User Management</span>
+                  <ArrowRight size={14} />
+                </button>
 
                 <button
-                  onClick={() => onSelectModule(m.id)}
-                  disabled={!hasAccess}
-                  style={{
-                    ...styles.launchBtn,
-                    backgroundColor: hasAccess ? 'var(--color-surface)' : 'var(--color-light)',
-                    color: hasAccess ? 'var(--color-text-main)' : 'var(--color-text-muted)',
-                    border: '1px solid var(--color-border)'
-                  }}
+                  onClick={() => setCurrentModule(MODULES.PERMISSIONS)}
+                  style={styles.actionBtnSecondary}
                 >
-                  <span>{hasAccess ? 'Open' : 'Restricted'}</span>
-                  {hasAccess ? <ArrowRight size={14} /> : <Lock size={14} />}
+                  <ShieldCheck size={16} />
+                  <span>Configure Permission Groups</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentModule(MODULES.USER_SETTINGS)}
+                  style={styles.actionBtnSecondary}
+                >
+                  <UserCheck size={16} />
+                  <span>My User Settings</span>
                 </button>
               </div>
             </div>
-          )
-        })}
-      </div>
-    </section>
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div style={styles.layout}>
+      {/* Super Admin Persistent Left Sidebar */}
+      <AdminSidebar
+        currentModule={currentModule}
+        onSelectModule={(modId) => setCurrentModule(modId)}
+      />
+
+      {/* Main Workspace Area */}
+      <main style={styles.mainWorkspace}>
+        {renderContent()}
+      </main>
+    </div>
   )
 }
 
 const styles = {
-  container: {
-    maxWidth: '1240px',
-    margin: '0 auto',
-    padding: '0 24px 72px',
+  layout: {
+    display: 'flex',
+    minHeight: 'calc(100vh - 72px)',
+    backgroundColor: 'var(--color-bg)',
   },
-  banner: {
+  mainWorkspace: {
+    flex: 1,
+    paddingTop: '28px',
+    overflowY: 'auto',
+  },
+  placeholderContainer: {
+    maxWidth: '860px',
+    margin: '40px auto 80px',
+    padding: '0 24px',
+    animation: 'fadeIn 0.25s ease',
+  },
+  placeholderCard: {
     backgroundColor: 'var(--color-surface)',
     border: '1.5px solid var(--color-border)',
     borderRadius: 'var(--radius-lg)',
-    padding: '36px',
-    marginBottom: '40px',
+    padding: '48px 36px',
+    textAlign: 'center',
     display: 'flex',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: '24px',
-    flexWrap: 'wrap',
     boxShadow: 'var(--shadow-sm)',
   },
-  bannerLeft: {
-    maxWidth: '700px',
+  placeholderIconBox: {
+    width: '76px',
+    height: '76px',
+    borderRadius: '20px',
+    backgroundColor: 'rgba(98, 111, 72, 0.14)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '20px',
   },
-  rolePill: {
+  placeholderBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '6px 14px',
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
+    gap: '6px',
+    padding: '4px 14px',
+    backgroundColor: 'rgba(98, 111, 72, 0.12)',
+    color: 'var(--color-primary-active)',
     borderRadius: 'var(--radius-full)',
     fontSize: '0.78rem',
     fontWeight: '700',
@@ -213,142 +186,70 @@ const styles = {
     letterSpacing: '0.04em',
     marginBottom: '14px',
   },
-  welcomeTitle: {
-    fontSize: '1.85rem',
+  placeholderTitle: {
+    fontSize: '1.9rem',
+    fontWeight: '800',
     color: 'var(--color-text-main)',
     marginBottom: '10px',
   },
-  bannerSubtitle: {
+  placeholderDesc: {
+    fontSize: '1rem',
     color: 'var(--color-text-muted)',
-    fontSize: '0.98rem',
+    maxWidth: '560px',
     lineHeight: 1.55,
+    marginBottom: '28px',
   },
-  statsCard: {
+  infoBox: {
     backgroundColor: 'var(--color-bg)',
     border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)',
     padding: '20px 24px',
-    borderRadius: 'var(--radius-md)',
-    textAlign: 'right',
-    minWidth: '220px',
+    maxWidth: '560px',
+    textAlign: 'left',
+    marginBottom: '32px',
   },
-  statLabel: {
-    fontSize: '0.75rem',
+  infoBoxTitle: {
+    fontSize: '0.86rem',
     fontWeight: '700',
-    color: 'var(--color-text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-  statValue: {
-    fontSize: '1.25rem',
-    fontWeight: '700',
-    color: 'var(--color-primary-active)',
-    margin: '4px 0',
-  },
-  statSub: {
-    fontSize: '0.78rem',
-    color: 'var(--color-text-muted)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  matrixHeader: {
-    marginBottom: '24px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    flexWrap: 'wrap',
-    gap: '8px',
-  },
-  matrixTitle: {
-    fontSize: '1.35rem',
     color: 'var(--color-text-main)',
-    marginBottom: '4px',
+    marginBottom: '6px',
   },
-  matrixDesc: {
-    fontSize: '0.88rem',
-    color: 'var(--color-text-muted)',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-    gap: '24px',
-  },
-  moduleCard: {
-    backgroundColor: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    padding: '26px',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    transition: 'all var(--transition-normal)',
-  },
-  cardTop: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '18px',
-  },
-  moduleIconBox: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '14px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 4px 12px rgba(34, 42, 30, 0.1)',
-  },
-  accessBadgeUnlocked: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    color: 'var(--color-success)',
-    backgroundColor: 'var(--color-success-bg)',
-    padding: '4px 10px',
-    borderRadius: 'var(--radius-full)',
-  },
-  accessBadgeLocked: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    color: 'var(--color-danger)',
-    backgroundColor: 'var(--color-danger-bg)',
-    padding: '4px 10px',
-    borderRadius: 'var(--radius-full)',
-  },
-  modTitle: {
-    fontSize: '1.15rem',
-    color: 'var(--color-text-main)',
-    marginBottom: '8px',
-  },
-  modSubtitle: {
-    fontSize: '0.88rem',
-    color: 'var(--color-text-muted)',
-    lineHeight: 1.55,
-    marginBottom: '24px',
-    minHeight: '44px',
-  },
-  cardBottom: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: '16px',
-    borderTop: '1px solid var(--color-border)',
-  },
-  statusBadge: {
-    fontSize: '0.78rem',
-    fontWeight: '600',
-    color: 'var(--color-text-muted)',
-  },
-  launchBtn: {
-    minHeight: '36px',
-    padding: '6px 16px',
+  infoBoxText: {
     fontSize: '0.84rem',
+    color: 'var(--color-text-muted)',
+    lineHeight: 1.5,
+  },
+  quickActions: {
+    display: 'flex',
+    gap: '12px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  actionBtnPrimary: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 24px',
     borderRadius: 'var(--radius-sm)',
+    border: 'none',
+    backgroundColor: 'var(--color-primary)',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: '0.92rem',
+    cursor: 'pointer',
+    boxShadow: 'var(--shadow-sm)',
+  },
+  actionBtnSecondary: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 20px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1.5px solid var(--color-border)',
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-text-main)',
     fontWeight: '600',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
   }
 }

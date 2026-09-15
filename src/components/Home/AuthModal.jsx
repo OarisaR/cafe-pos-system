@@ -1,64 +1,56 @@
 import React, { useState, useEffect } from 'react'
-import { X, Lock, Mail, Eye, EyeOff, UserCheck, AlertCircle, ArrowRight } from 'lucide-react'
+import { X, Lock, Mail, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import confetti from 'canvas-confetti'
 
-export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
+export const AuthModal = ({ isOpen, onClose, prefilledEmail = '', authNotice = null }) => {
   const { login, error, setError } = useAuth()
 
-  const [identifier, setIdentifier] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [selectedRole, setSelectedRole] = useState(initialRole)
+  const [localSuccess, setLocalSuccess] = useState(null)
 
-  // Populate credentials based on role without auto-submitting
-  const fillOwnerCredentials = () => {
-    setSelectedRole('admin')
-    setIdentifier('admin@cafepos.com')
-    setPassword('AdminPassword123!')
-    setError(null)
-  }
-
-  const fillCashierCredentials = () => {
-    setSelectedRole('cashier')
-    setIdentifier('cashier@cafepos.com')
-    setPassword('CashierPassword123!')
-    setError(null)
-  }
-
-  // Pre-populate on modal open
   useEffect(() => {
     if (isOpen) {
-      if (initialRole === 'admin') {
-        fillOwnerCredentials()
-      } else {
-        fillCashierCredentials()
+      if (prefilledEmail) {
+        setEmail(prefilledEmail)
       }
+      setLocalSuccess(authNotice)
     }
-  }, [isOpen, initialRole])
+  }, [isOpen, prefilledEmail, authNotice])
 
   if (!isOpen) return null
 
   const handleClose = () => {
     setError(null)
+    setLocalSuccess(null)
     onClose()
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!identifier || !password) return
+    if (!email || !password) return
 
     setSubmitting(true)
+    setError(null)
+
     try {
-      await login(identifier, password)
+      await login(email, password)
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } })
       handleClose()
     } catch (err) {
-      // Error is set in AuthContext
+      // Error handled in AuthContext
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const fillAdminShortcut = () => {
+    setEmail('admin@cafepos.com')
+    setPassword('AdminPassword123!')
+    setError(null)
   }
 
   return (
@@ -67,8 +59,10 @@ export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
         {/* Header */}
         <div style={styles.modalHeader}>
           <div>
-            <h3 style={styles.modalTitle}>Staff Sign In</h3>
-            <p style={styles.modalSubtitle}>L'Aroma Cafe POS Terminal</p>
+            <h3 style={styles.modalTitle}>Staff Terminal Sign In</h3>
+            <p style={styles.modalSubtitle}>
+              Enter your registered credentials to access your station
+            </p>
           </div>
 
           <button onClick={handleClose} style={styles.closeBtn} aria-label="Close modal">
@@ -76,71 +70,45 @@ export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
           </button>
         </div>
 
-        {/* Role Selector Tabs (Auto-fills Credentials on Click) */}
-        <div style={styles.demoButtonsRow}>
-          <button
-            type="button"
-            onClick={fillOwnerCredentials}
-            style={{
-              ...styles.demoBtn,
-              backgroundColor: selectedRole === 'admin' ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: selectedRole === 'admin' ? '#FFFFFF' : 'var(--color-text-main)',
-              borderColor: selectedRole === 'admin' ? 'var(--color-primary)' : 'var(--color-border)',
-            }}
-          >
-            <UserCheck size={14} />
-            <span>Owner Account</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={fillCashierCredentials}
-            style={{
-              ...styles.demoBtn,
-              backgroundColor: selectedRole === 'cashier' ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: selectedRole === 'cashier' ? '#FFFFFF' : 'var(--color-text-main)',
-              borderColor: selectedRole === 'cashier' ? 'var(--color-primary)' : 'var(--color-border)',
-            }}
-          >
-            <UserCheck size={14} />
-            <span>Cashier Account</span>
-          </button>
-        </div>
+        {/* Success / Verification Banner */}
+        {localSuccess && (
+          <div style={styles.successBanner}>
+            <CheckCircle2 size={18} color="var(--color-success)" style={{ flexShrink: 0 }} />
+            <div style={styles.successText}>{localSuccess}</div>
+          </div>
+        )}
 
         {/* Error Banner */}
         {error && (
           <div style={styles.errorBanner}>
-            <AlertCircle size={16} color="var(--color-danger)" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <AlertCircle size={18} color="var(--color-danger)" style={{ flexShrink: 0 }} />
             <div style={styles.errorText}>{error}</div>
           </div>
         )}
 
-        {/* Credentials Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} style={styles.form}>
           <div className="input-group">
-            <label className="input-label" htmlFor="user-ident">
-              Email or Username
+            <label className="input-label" htmlFor="user-email">
+              Email Address
             </label>
             <div style={styles.inputWrapper}>
               <Mail size={16} color="var(--color-text-muted)" style={styles.inputIcon} />
               <input
-                id="user-ident"
-                type="text"
+                id="user-email"
+                type="email"
                 className="input-field"
                 style={styles.paddedInput}
-                placeholder="email@cafepos.com or username"
-                value={identifier}
-                onChange={(e) => {
-                  setIdentifier(e.target.value)
-                  setSelectedRole(null)
-                }}
+                placeholder="name@cafepos.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
               />
             </div>
           </div>
 
-          <div className="input-group" style={{ marginBottom: '24px' }}>
+          <div className="input-group">
             <label className="input-label" htmlFor="user-pwd">
               Password
             </label>
@@ -150,13 +118,10 @@ export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
                 id="user-pwd"
                 type={showPassword ? 'text' : 'password'}
                 className="input-field"
-                style={{ ...styles.paddedInput, paddingRight: '40px' }}
-                placeholder="••••••••••••"
+                style={{ ...styles.paddedInput, paddingRight: '42px' }}
+                placeholder="Enter your password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  setSelectedRole(null)
-                }}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
               <button
@@ -176,15 +141,21 @@ export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
             disabled={submitting}
             style={styles.submitBtn}
           >
-            {submitting ? (
-              <span>Signing In...</span>
-            ) : (
-              <>
-                <span>Sign In to Terminal</span>
-                <ArrowRight size={16} />
-              </>
-            )}
+            <span>{submitting ? 'Authenticating...' : 'Sign In to Terminal'}</span>
+            <ArrowRight size={16} />
           </button>
+
+          {/* Quick Demo Autofill Helper */}
+          <div style={styles.footerHelp}>
+            <button
+              type="button"
+              onClick={fillAdminShortcut}
+              style={styles.shortcutLink}
+            >
+              <Sparkles size={13} />
+              <span>Autofill Super Admin Demo Account</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -193,78 +164,78 @@ export const AuthModal = ({ isOpen, onClose, initialRole = 'cashier' }) => {
 
 const styles = {
   modalCard: {
-    backgroundColor: 'var(--color-bg)',
-    padding: '28px 26px',
+    maxWidth: '440px',
+    width: '100%',
+    padding: '32px 28px',
     borderRadius: '20px',
-    maxWidth: '420px',
+    backgroundColor: 'var(--color-surface)',
+    border: '1.5px solid var(--color-border)',
+    boxShadow: 'var(--shadow-lg)',
   },
   modalHeader: {
     display: 'flex',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: '20px',
   },
   modalTitle: {
-    fontSize: '1.3rem',
+    fontSize: '1.4rem',
+    fontWeight: '800',
     color: 'var(--color-text-main)',
-    fontWeight: '700',
-    lineHeight: 1.2,
+    letterSpacing: '-0.02em',
   },
   modalSubtitle: {
-    fontSize: '0.82rem',
+    fontSize: '0.84rem',
     color: 'var(--color-text-muted)',
     marginTop: '3px',
   },
   closeBtn: {
-    minHeight: '32px',
-    width: '32px',
-    borderRadius: '50%',
-    backgroundColor: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-  },
-  demoButtonsRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '10px',
-    marginBottom: '22px',
-  },
-  demoBtn: {
-    minHeight: '38px',
-    padding: '8px 12px',
-    border: '1px solid var(--color-border)',
-    fontSize: '0.8rem',
-    fontWeight: '600',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    transition: 'all var(--transition-fast)',
+    background: 'none',
+    border: 'none',
     cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    color: 'var(--color-text-muted)',
+  },
+  successBanner: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    padding: '12px 14px',
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'var(--color-success-bg)',
+    border: '1px solid var(--color-success)',
+    marginBottom: '16px',
+  },
+  successText: {
+    fontSize: '0.84rem',
+    color: 'var(--color-success)',
+    fontWeight: '600',
+    lineHeight: 1.4,
   },
   errorBanner: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '8px',
+    gap: '10px',
+    padding: '12px 14px',
+    borderRadius: 'var(--radius-sm)',
     backgroundColor: 'var(--color-danger-bg)',
-    border: '1px solid rgba(192, 57, 43, 0.25)',
-    borderRadius: 'var(--radius-md)',
-    padding: '10px 12px',
+    border: '1px solid var(--color-danger)',
     marginBottom: '16px',
   },
   errorText: {
-    fontSize: '0.82rem',
+    fontSize: '0.84rem',
     color: 'var(--color-danger)',
     fontWeight: '600',
-    lineHeight: 1.35,
+    lineHeight: 1.4,
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
+    gap: '16px',
   },
   inputWrapper: {
     position: 'relative',
@@ -277,21 +248,46 @@ const styles = {
     pointerEvents: 'none',
   },
   paddedInput: {
-    width: '100%',
     paddingLeft: '40px',
   },
   eyeBtn: {
     position: 'absolute',
-    right: '8px',
-    minHeight: '32px',
-    width: '32px',
-    padding: 0,
+    right: '12px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
     color: 'var(--color-text-muted)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px',
   },
   submitBtn: {
     width: '100%',
-    padding: '13px',
-    fontSize: '0.95rem',
-    borderRadius: 'var(--radius-md)',
+    padding: '12px 20px',
+    fontSize: '0.94rem',
+    borderRadius: 'var(--radius-sm)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    fontWeight: '700',
+    marginTop: '6px',
+  },
+  footerHelp: {
+    textAlign: 'center',
+    paddingTop: '6px',
+  },
+  shortcutLink: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--color-primary-active)',
+    fontSize: '0.8rem',
+    fontWeight: '700',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
   }
 }

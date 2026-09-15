@@ -63,8 +63,8 @@ export const Navbar = ({ onOpenAuthModal }) => {
                 </div>
               </div>
 
-              <button 
-                onClick={() => logout()} 
+              <button
+                onClick={() => logout()}
                 style={styles.logoutBtn}
                 title="Sign Out"
               >
@@ -73,7 +73,7 @@ export const Navbar = ({ onOpenAuthModal }) => {
               </button>
             </div>
           ) : (
-            <button 
+            <button
               onClick={onOpenAuthModal}
               className="btn-primary"
               style={styles.signInBtn}
