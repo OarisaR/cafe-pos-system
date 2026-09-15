@@ -214,14 +214,14 @@ export const StaffManagementView = () => {
         <div style={styles.tableHeader}>
           <div>
             <h3 style={styles.tableTitle}>Staff Directory ({staffList.length} members)</h3>
-            <p style={styles.tableDesc}>All profiles synced in real-time with Supabase PostgreSQL and Authentication</p>
+            <p style={styles.tableDesc}>Active personnel directory, module permissions, and terminal access</p>
           </div>
         </div>
 
         {loading ? (
           <div style={styles.emptyState}>
             <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-primary)' }} />
-            <p style={{ marginTop: '12px', color: 'var(--color-text-muted)' }}>Loading staff records from Supabase...</p>
+            <p style={{ marginTop: '12px', color: 'var(--color-text-muted)' }}>Loading staff directory...</p>
           </div>
         ) : staffList.length === 0 ? (
           <div style={styles.emptyState}>
@@ -238,8 +238,7 @@ export const StaffManagementView = () => {
                 <tr style={styles.trHead}>
                   <th style={styles.th}>Staff Member</th>
                   <th style={styles.th}>Phone Number</th>
-                  <th style={styles.th}>Permission Group</th>
-                  <th style={styles.th}>System Role</th>
+                  <th style={styles.th}>Assigned Role</th>
                   <th style={styles.th}>Joined Date</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -281,7 +280,7 @@ export const StaffManagementView = () => {
                         </div>
                       </td>
 
-                      {/* Permission Group Dropdown */}
+                      {/* Assigned Role (Permission Group Dropdown) */}
                       <td style={styles.td}>
                         <select
                           value={st.permission_group_id || 'grp_staff'}
@@ -299,18 +298,6 @@ export const StaffManagementView = () => {
                             </option>
                           ))}
                         </select>
-                      </td>
-
-                      {/* System Role */}
-                      <td style={styles.td}>
-                        <span style={{
-                          ...styles.rolePill,
-                          backgroundColor: st.role === 'admin' ? 'rgba(139, 154, 110, 0.2)' : 'rgba(178, 106, 0, 0.15)',
-                          color: st.role === 'admin' ? 'var(--color-primary-active)' : '#B26A00'
-                        }}>
-                          <ShieldCheck size={12} />
-                          <span>{st.role?.toUpperCase() || 'CASHIER'}</span>
-                        </span>
                       </td>
 
                       {/* Date */}
@@ -368,7 +355,7 @@ export const StaffManagementView = () => {
                 </div>
                 <div>
                   <h3 style={styles.modalTitle}>Create Staff &amp; Send Email Invite</h3>
-                  <p style={styles.modalSubtitle}>Supabase will trigger an account verification email to the user</p>
+                  <p style={styles.modalSubtitle}>An account verification email will be dispatched to the user</p>
                 </div>
               </div>
               <button onClick={() => setIsCreateModalOpen(false)} style={styles.closeBtn}>×</button>
@@ -390,7 +377,7 @@ export const StaffManagementView = () => {
 
               {/* Email Address */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>Email Address (Supabase Confirmation Sent Here) *</label>
+                <label style={styles.label}>Email Address *</label>
                 <div style={styles.inputWithIcon}>
                   <Mail size={16} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
@@ -456,9 +443,9 @@ export const StaffManagementView = () => {
                 </span>
               </div>
 
-              {/* Assigned Permission Group */}
+              {/* Assigned Role / Permission Group */}
               <div style={styles.formGroup}>
-                <label style={styles.label}>Assign Permission Group *</label>
+                <label style={styles.label}>Assign Role (Permission Group) *</label>
                 <select
                   value={selectedGroupId}
                   onChange={(e) => setSelectedGroupId(e.target.value)}
@@ -515,7 +502,7 @@ export const StaffManagementView = () => {
                 </div>
                 <div>
                   <h3 style={styles.modalTitle}>Staff Account Created!</h3>
-                  <p style={styles.modalSubtitle}>Supabase confirmation email has been dispatched</p>
+                  <p style={styles.modalSubtitle}>Verification &amp; invitation email has been dispatched</p>
                 </div>
               </div>
               <button onClick={() => setCreatedStaffCreds(null)} style={styles.closeBtn}>×</button>

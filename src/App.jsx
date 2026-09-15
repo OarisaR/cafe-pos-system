@@ -62,8 +62,9 @@ const MainContent = () => {
         setAuthNotice('🎉 Account email confirmed! Please sign in with your initial password.')
         setActiveNotification({
           type: 'success',
-          text: '🎉 Email verified successfully! Please sign in with your initial password.'
+          text: 'Email verified successfully! Please sign in with your initial password.'
         })
+        setTimeout(() => setActiveNotification(null), 4000)
 
         // Clean URL
         window.history.replaceState(null, '', window.location.pathname)
@@ -113,6 +114,13 @@ const MainContent = () => {
         >
           {activeNotification.type === 'restricted' ? <ShieldCheck size={18} /> : <Sparkles size={18} />}
           <span>{activeNotification.text}</span>
+          <button
+            onClick={() => setActiveNotification(null)}
+            style={styles.toastCloseBtn}
+            title="Dismiss"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -209,6 +217,17 @@ const styles = {
     fontWeight: '600',
     maxWidth: '92vw',
     animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+  },
+  toastCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'currentColor',
+    fontSize: '1.2rem',
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: '0 4px',
+    marginLeft: '6px',
+    opacity: 0.8,
   },
   footer: {
     borderTop: '1px solid var(--color-border)',

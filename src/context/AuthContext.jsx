@@ -438,17 +438,19 @@ export const AuthProvider = ({ children }) => {
 
       const mappedList = activeProfiles.map(p => {
         const extra = extraMap[p.id] || {}
+        const phone = p.phone || extra.phone || ''
+        const permission_group_id = p.permission_group_id || extra.permission_group_id || (p.role === 'admin' ? 'grp_super_admin' : 'grp_staff')
         return {
           ...p,
-          phone: extra.phone || p.phone || '+880 1711-' + Math.floor(100000 + Math.random() * 900000),
-          permission_group_id: extra.permission_group_id || (p.role === 'admin' ? 'grp_super_admin' : 'grp_staff'),
+          phone,
+          permission_group_id,
           resolved_role: p.role === 'admin' ? ROLES.SUPER_ADMIN : (extra.role || ROLES.STAFF)
         }
       })
 
       return mappedList
     } catch (err) {
-      console.error('Error fetching staff members from Supabase:', err)
+      console.error('Error fetching staff members:', err)
       return []
     }
   }
@@ -462,7 +464,7 @@ export const AuthProvider = ({ children }) => {
       const preservedUser = user
       const preservedProfile = profile
 
-      // 1. Register in Supabase Auth (dispatches confirmation email with initial_password in metadata)
+      // 1. Register in Auth (dispatches confirmation email with initial_password in metadata)
       const redirectTarget = window.location.origin
       const { data, error: authErr } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -473,7 +475,8 @@ export const AuthProvider = ({ children }) => {
             full_name: fullName.trim(),
             phone: phone.trim(),
             permission_group_id: groupId,
-            initial_password: initialPassword, // Stored in metadata so confirmation template renders it via {{ .Data.initial_password }}
+            role: matchedGroup.name,
+            initial_password: initialPassword,
           }
         }
       })
@@ -498,16 +501,42 @@ export const AuthProvider = ({ children }) => {
         const dbRole = (groupId === 'grp_super_admin' || groupId === 'grp_manager') ? 'admin' : 'cashier'
         const username = cleanEmail.split('@')[0]
 
-        // 2. Insert into Supabase profiles table
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email: cleanEmail,
-          username: username,
-          full_name: fullName.trim(),
-          role: dbRole,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        // 2. Insert into profiles table with phone & permission_group_id
+        try {
+          const { error: upsertErr } = await supabase.from('profiles').upsert({
+            id: data.user.id,
+            email: cleanEmail,
+            username: username,
+            full_name: fullName.trim(),
+            role: dbRole,
+            phone: phone.trim(),
+            permission_group_id: groupId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          if (upsertErr) {
+            // Fallback if schema does not yet have phone or permission_group_id columns
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              email: cleanEmail,
+              username: username,
+              full_name: fullName.trim(),
+              role: dbRole,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+          }
+        } catch {
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            email: cleanEmail,
+            username: username,
+            full_name: fullName.trim(),
+            role: dbRole,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        }
 
         // 3. Save extra phone, initial password, and group locally
         saveStaffExtraData(data.user.id, {
@@ -529,22 +558,16 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (err) {
-      console.error('Detailed createStaffUser error:', {
-        name: err.name,
-        message: err.message,
-        status: err.status,
-        code: err.code,
-        raw: err
-      })
+      console.error('Detailed createStaffUser error:', err)
 
       let msg = err.message || ''
 
       if (err.status === 429 || err.code === 'over_email_send_rate_limit' || msg.toLowerCase().includes('rate limit')) {
-        msg = 'Email rate limit reached! Supabase default mail only allows 3-4 emails/hour. Please wait a few minutes or set up custom SMTP.'
+        msg = 'Email rate limit reached. Please wait a few moments before dispatching another invite.'
       } else if (msg.toLowerCase().includes('already registered') || err.code === 'user_already_exists') {
-        msg = 'This email is already registered in Supabase Authentication. Please delete it from Supabase Dashboard -> Authentication -> Users, or try a different email.'
+        msg = 'This email address is already registered in the system.'
       } else if (!msg || msg === '{}' || msg.includes('AuthRetryableFetchError')) {
-        msg = 'Supabase could not dispatch the invite email. This usually happens if the email already exists in Supabase Auth, or the hourly email rate limit was reached.'
+        msg = 'Could not dispatch the invite email. Please check network connectivity and verify the email address.'
       }
 
       throw new Error(msg)
@@ -586,13 +609,24 @@ export const AuthProvider = ({ children }) => {
     try {
       const dbRole = (newGroupId === 'grp_super_admin' || newGroupId === 'grp_manager') ? 'admin' : 'cashier'
 
-      await supabase
-        .from('profiles')
-        .update({
-          role: dbRole,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', staffId)
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            role: dbRole,
+            permission_group_id: newGroupId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', staffId)
+      } catch {
+        await supabase
+          .from('profiles')
+          .update({
+            role: dbRole,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', staffId)
+      }
 
       saveStaffExtraData(staffId, { permission_group_id: newGroupId })
 

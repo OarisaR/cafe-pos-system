@@ -159,7 +159,7 @@ export const UserSettingsView = () => {
                     style={{ ...styles.inputDisabled, paddingLeft: '38px' }}
                   />
                 </div>
-                <span style={styles.hint}>Email address is locked to your Supabase verified identity.</span>
+                <span style={styles.hint}>Email address is linked to your verified staff profile.</span>
               </div>
 
               <div style={styles.formGroup}>
@@ -209,7 +209,7 @@ export const UserSettingsView = () => {
               </div>
               <div>
                 <h3 style={styles.cardTitle}>Change Password</h3>
-                <p style={styles.cardSubtitle}>Update your password securely via Supabase Auth</p>
+                <p style={styles.cardSubtitle}>Update your terminal access password securely</p>
               </div>
             </div>
 
