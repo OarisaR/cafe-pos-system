@@ -1,0 +1,307 @@
+/* ==========================================================================
+   L'Aroma Cafe POS & Management System - Global Design Tokens & Stylesheet
+   Palette Scheme:
+   Primary Matcha Accent:   #8B9A6E
+   Warm Milk Cream Canvas:  #F7F2EB
+   Warm Oat Latte Surface:  #EAE2D6
+   Soft Light Grey / Foam:  #EEEEEE
+   Espresso Charcoal Text:  #222A1E
+   ========================================================================== */
+
+:root {
+  /* Core Brand Tokens */
+  --color-primary: #8B9A6E;
+  --color-primary-hover: #758359;
+  --color-primary-active: #626F48;
+  --color-primary-subtle: rgba(139, 154, 110, 0.15);
+
+  --color-bg: #F7F2EB;
+  --color-surface: #EAE2D6;
+  --color-surface-hover: #DFD6C8;
+  --color-light: #EEEEEE;
+  --color-white: #FFFFFF;
+
+  --color-text-main: #222A1E;
+  --color-text-muted: #6B7465;
+  --color-text-subtle: #8E9689;
+
+  --color-border: #DCD3C4;
+  --color-border-light: rgba(220, 211, 196, 0.6);
+
+  /* Status Colors */
+  --color-success: #2D6A4F;
+  --color-success-bg: #E8F4EC;
+  --color-warning: #B26A00;
+  --color-warning-bg: #FEF6EB;
+  --color-danger: #C0392B;
+  --color-danger-bg: #FDEDEC;
+  --color-info: #3E6B89;
+  --color-info-bg: #EAF2F8;
+
+  /* Typography */
+  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Shadows & Elevation */
+  --shadow-sm: 0 1px 3px rgba(34, 42, 30, 0.05), 0 1px 2px rgba(34, 42, 30, 0.08);
+  --shadow-md: 0 4px 12px rgba(34, 42, 30, 0.07), 0 2px 4px rgba(34, 42, 30, 0.05);
+  --shadow-lg: 0 12px 28px rgba(34, 42, 30, 0.1), 0 4px 10px rgba(34, 42, 30, 0.05);
+  --shadow-modal: 0 24px 60px rgba(34, 42, 30, 0.18), 0 8px 20px rgba(34, 42, 30, 0.08);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Touch Target minimum ergonomics */
+  --touch-target-min: 48px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+}
+
+/* Reset & Base Setup */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-text-main);
+  line-height: 1.25;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Touch-friendly POS Buttons */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all var(--transition-fast);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  min-height: var(--touch-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Primary Button */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  padding: 12px 24px;
+  box-shadow: 0 4px 14px rgba(139, 154, 110, 0.35);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  box-shadow: 0 6px 18px rgba(139, 154, 110, 0.45);
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text-main);
+  border: 1px solid var(--color-border);
+  padding: 12px 20px;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-primary);
+}
+
+/* Light / Ghost Button */
+.btn-ghost {
+  color: var(--color-text-main);
+  padding: 10px 16px;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary-active);
+}
+
+/* Inputs & Forms */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.input-field {
+  background-color: var(--color-light);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  color: var(--color-text-main);
+  font-size: 1rem;
+  min-height: var(--touch-target-min);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--color-primary);
+  background-color: var(--color-white);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+}
+
+/* Pill Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.775rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge-primary {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary-active);
+  border: 1px solid rgba(139, 154, 110, 0.3);
+}
+
+.badge-success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.badge-warning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.badge-danger {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Modal Overlay Animation */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(34, 42, 30, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Login page: ছোট স্ক্রিনে দুই কলাম ভেঙে এক কলাম হবে */
+@media (max-width: 900px) {
+  .login-split {
+    grid-template-columns: 1fr !important;
+  }
+  .login-split > aside {
+    display: none !important;
+  }
+}
+
+/* Dashboard shell: ছোট স্ক্রিনে sidebar উপরে চলে আসবে */
+@media (max-width: 860px) {
+  .dashboard-shell {
+    flex-direction: column !important;
+  }
+  .dashboard-shell > aside {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    border-right: none !important;
+    border-bottom: 1.5px solid var(--color-border) !important;
+  }
+}
+
+/* Utility Animations */
+@keyframes pulseDot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
