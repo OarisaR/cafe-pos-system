@@ -299,6 +299,30 @@ button:disabled {
   }
 }
 
+/* Menu Directory: category কার্ডের সারির নিজস্ব সরু স্ক্রলবার */
+.category-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.category-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.category-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.category-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+.category-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Utility Animations */
 @keyframes pulseDot {
   0% { transform: scale(0.95); opacity: 0.8; }

@@ -135,6 +135,40 @@ CREATE TABLE IF NOT EXISTS public.ingredients (
 );
 
 
+-- Restock: stock বাড়ানো একটাই ধাপে (stock_level = stock_level + qty)।
+-- ব্রাউজার আগে পড়ে তারপর লিখলে, দুজন একসাথে restock করলে একজনেরটা হারিয়ে যেত।
+-- ভবিষ্যতে stock এর ইতিহাস রাখতে চাইলে শুধু এই function এর ভিতরে একটা
+-- INSERT INTO stock_movements যোগ করলেই হবে — অ্যাপের কোড বদলাতে হবে না।
+-- SECURITY INVOKER → RLS প্রযোজ্য (owner / manager / staff)
+CREATE OR REPLACE FUNCTION public.restock_ingredient(p_ingredient_id UUID, p_quantity NUMERIC)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  new_level NUMERIC;
+BEGIN
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RAISE EXCEPTION 'Restock quantity must be greater than 0.';
+  END IF;
+
+  UPDATE public.ingredients
+  SET stock_level = stock_level + p_quantity
+  WHERE ingredient_id = p_ingredient_id
+  RETURNING stock_level INTO new_level;
+
+  IF new_level IS NULL THEN
+    RAISE EXCEPTION 'Ingredient not found, or you do not have permission to restock it.';
+  END IF;
+
+  RETURN new_level;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.restock_ingredient(UUID, NUMERIC) TO authenticated;
+
+
 -- =========================================================================
 -- ধাপ ১গ. restaurant_tables                                       Person 2
 -- ('tables' নাম ব্যবহার করা হয়নি — SQL keyword এর সাথে গুলিয়ে যায়)
@@ -170,6 +204,17 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
 
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON public.menu_items (category_id);
 
+-- Menu card এর ছবি ও বানানোর সময় (ঐচ্ছিক)। ADD COLUMN আলাদা রাখা হয়েছে,
+-- যাতে আগে থেকে টেবিল থাকা ডেটাবেজেও কলাম দুটো যোগ হয়।
+ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS prep_time_minutes INT;
+ALTER TABLE public.menu_items DROP CONSTRAINT IF EXISTS menu_items_image_url_check;
+ALTER TABLE public.menu_items
+  ADD CONSTRAINT menu_items_image_url_check CHECK (image_url IS NULL OR image_url ~* '^https?://');
+ALTER TABLE public.menu_items DROP CONSTRAINT IF EXISTS menu_items_prep_time_check;
+ALTER TABLE public.menu_items
+  ADD CONSTRAINT menu_items_prep_time_check CHECK (prep_time_minutes IS NULL OR prep_time_minutes BETWEEN 0 AND 600);
+
 
 -- =========================================================================
 -- ধাপ ৩. menu_item_ingredients (Recipe / BOM)                     Person 3
@@ -185,6 +230,27 @@ CREATE TABLE IF NOT EXISTS public.menu_item_ingredients (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mii_ingredient ON public.menu_item_ingredients (ingredient_id);
+
+-- একটা আইটেমের পুরো recipe একসাথে বদলানো (অর্ধেক সেভ হয়ে থাকার ঝুঁকি নেই)
+-- p_items: [{"ingredient_id": "...", "quantity_required": 18}, ...]
+-- SECURITY INVOKER → ডাকনেওয়ালার RLS প্রযোজ্য, তাই শুধু owner/manager পারবে
+CREATE OR REPLACE FUNCTION public.set_menu_item_recipe(p_menu_item_id UUID, p_items JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM public.menu_item_ingredients WHERE menu_item_id = p_menu_item_id;
+
+  INSERT INTO public.menu_item_ingredients (menu_item_id, ingredient_id, quantity_required)
+  SELECT p_menu_item_id, r.ingredient_id, r.quantity_required
+  FROM jsonb_to_recordset(COALESCE(p_items, '[]'::jsonb))
+       AS r (ingredient_id UUID, quantity_required NUMERIC);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.set_menu_item_recipe(UUID, JSONB) TO authenticated;
 
 
 -- =========================================================================
@@ -803,6 +869,43 @@ ON CONFLICT (menu_item_id, ingredient_id) DO NOTHING;
 INSERT INTO public.restaurant_tables (table_number, capacity) VALUES
   (1, 2), (2, 4), (3, 4), (4, 6), (5, 2), (6, 4), (7, 2), (8, 8)
 ON CONFLICT (table_number) DO NOTHING;
+
+
+-- =========================================================================
+-- ধাপ ১২. Function permissions                                        Person 1
+--
+-- Postgres নতুন function এ নিজে থেকেই সবাইকে (PUBLIC, anon সহ) EXECUTE দেয়।
+-- লগইন ছাড়া কেউ যেন কোনো function ডাকতে না পারে।
+-- (trigger function এর EXECUTE অনুমতি trigger চলার জন্য লাগে না)
+-- =========================================================================
+DO $$
+DECLARE
+  fn RECORD;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS sig, p.proname
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'touch_updated_at', 'orders_before_insert', 'orders_after_insert',
+        'order_items_before_write', 'bills_before_write', 'bills_after_insert',
+        'orders_after_status_change',
+        'app_role', 'has_role', 'restock_ingredient', 'set_menu_item_recipe'
+      )
+  LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon', fn.sig);
+    IF fn.proname IN ('app_role', 'has_role', 'restock_ingredient', 'set_menu_item_recipe') THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated', fn.sig);
+    END IF;
+  END LOOP;
+END $$;
+
+ALTER FUNCTION public.touch_updated_at() SET search_path = public;
+
+-- বিক্রি/লাভের view লগইন ছাড়া কেউ পড়তে পারবে না
+REVOKE ALL ON public.low_stock_ingredients FROM PUBLIC, anon;
+REVOKE ALL ON public.daily_sales_summary   FROM PUBLIC, anon;
 
 
 -- =========================================================================
