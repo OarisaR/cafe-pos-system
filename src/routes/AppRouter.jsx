@@ -68,7 +68,18 @@ export const AppRouter = () => (
             </ProtectedRoute>
           }
         >
-          {/* Person 1 */}
+    
+            {/* Orders can be opened directly; OrdersPage provides the table
+              selector when the URL does not contain a table reference.
+              Route coordination by Oarisa. */}
+          <Route
+            path="orders"
+            element={
+              <Guarded module={MODULES.ORDERS}>
+                <OrdersPage />
+              </Guarded>
+            }
+          />
           <Route
             index
             element={
@@ -111,15 +122,25 @@ export const AppRouter = () => (
             }
           />
 
-          {/* Person 2 */}
+          {/* Person 2 — readable table-number URL and takeaway orders. for takeway table id stays NULL */}
           <Route
-            path="orders"
+            path="orders/table/:tableNumber"
             element={
               <Guarded module={MODULES.ORDERS}>
                 <OrdersPage />
               </Guarded>
             }
           />
+          {/*not needed anymore, 
+          replaced by tableNumber route above. 
+          <Route
+            path="orders/:tableId"
+            element={
+              <Guarded module={MODULES.ORDERS}>
+                <OrdersPage />
+              </Guarded>
+            }
+          /> */}
           <Route
             path="tables"
             element={
@@ -155,6 +176,11 @@ export const AppRouter = () => (
                 <BillingPage />
               </Guarded>
             }
+          />
+ {/* Person 4  will do this once the order is placed it carries that order id and then goes to biling page*/}
+          <Route
+            path="/dashboard/billing/:orderId"
+            element={<BillingPage />}
           />
           <Route
             path="settings"

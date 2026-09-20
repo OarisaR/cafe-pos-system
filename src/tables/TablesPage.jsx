@@ -1,168 +1,602 @@
-// =========================================================================
-// MODULE OWNER: Person 2 — Table Management
-// Route: /dashboard/tables
-//
-// Cafe floor map: প্রতিটা টেবিলের অবস্থা (Empty / Occupied / Reserved /
-// Needs Cleaning)। কার্ডে চাপলে অবস্থা বদলায়।
-//
-// Order আর Table একই ডেটা-ফ্লোতে, তাই দুটোই Person 2 এর দায়িত্বে।
-// এখনো টেবিলের তালিকা mock — পরে Supabase এর cafe_tables টেবিল থেকে আসবে।
-// =========================================================================
-import React, { useState } from 'react'
+// TablesPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  getAllTables,
+  claimTable,
+  markNeedsCleaning,
+  markEmpty,
+  TABLE_STATUS,
+} from "./tableService";
+import { getActiveOrders } from "../orders/orderService";
 
-const STATUS_COLORS = {
-  empty:    { bg: '#E8F5E9', color: '#2E7D32' },
-  occupied: { bg: '#FFF3E0', color: '#E65100' },
-  reserved: { bg: '#E3F2FD', color: '#1565C0' },
-  cleaning: { bg: '#FFFDE7', color: '#F57F17' },
+function getTableImageSrc(table) {
+  const capacity = table.capacity;
+  const status = table.status;
+
+  let statusKey = "empty";
+  if (status === TABLE_STATUS.OCCUPIED) statusKey = "occupied";
+  if (status === TABLE_STATUS.NEEDS_CLEANING) statusKey = "cleaning";
+
+  const capacityKey = capacity === 2 ? 2 : 4;
+
+  return `/images/table-${capacityKey}-${statusKey}.png`;
 }
 
-export const TablesPage = () => {
-  // Table Management State
-  const [tablesList, setTablesList] = useState([
-    { id: 1, name: 'Table 01', capacity: 2, status: 'empty', guest: null },
-    { id: 2, name: 'Table 02', capacity: 4, status: 'occupied', guest: 'Guest #104' },
-    { id: 3, name: 'Table 03', capacity: 4, status: 'occupied', guest: 'Active Order' },
-    { id: 4, name: 'Table 04', capacity: 6, status: 'reserved', guest: 'Booking 7 PM' },
-    { id: 5, name: 'Table 05', capacity: 2, status: 'cleaning', guest: null },
-    { id: 6, name: 'Table 06', capacity: 4, status: 'empty', guest: null },
-    { id: 7, name: 'Table 07', capacity: 2, status: 'empty', guest: null },
-    { id: 8, name: 'Table 08', capacity: 8, status: 'occupied', guest: 'Family' },
-  ])
+const STATUS_META = {
+  [TABLE_STATUS.EMPTY]: {
+    label: "Available",
+    dot: "var(--color-success)",
+  },
+  [TABLE_STATUS.OCCUPIED]: {
+    label: "Occupied",
+    dot: "var(--color-primary-active)",
+  },
+  [TABLE_STATUS.NEEDS_CLEANING]: {
+    label: "Needs Cleaning",
+    dot: "var(--color-danger)",
+  },
+};
 
-  const toggleTableStatus = (tableId) => {
-    setTablesList(prev => prev.map(t => {
-      if (t.id === tableId) {
-        const nextStatus = t.status === 'empty' ? 'occupied' : t.status === 'occupied' ? 'cleaning' : 'empty'
-        return { ...t, status: nextStatus }
-      }
-      return t
-    }))
+export const TablesPage = () => {
+  const [tables, setTables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedTableId, setSelectedTableId] = useState(null);
+  const [activeOrders, setActiveOrders] = useState([]);
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadTables();
+  }, []);
+
+  async function loadTables() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [tableRows, orderRows] = await Promise.all([
+        getAllTables(),
+        getActiveOrders(),
+      ]);
+
+      setTables(tableRows);
+      setActiveOrders(orderRows);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ---- derived data ----
+
+  const stats = useMemo(() => {
+    const counts = {
+      total: tables.length,
+      [TABLE_STATUS.EMPTY]: 0,
+      [TABLE_STATUS.OCCUPIED]: 0,
+      [TABLE_STATUS.NEEDS_CLEANING]: 0,
+    };
+
+    tables.forEach((table) => {
+      counts[table.status] = (counts[table.status] || 0) + 1;
+    });
+
+    return counts;
+  }, [tables]);
+
+  const needsAttention = useMemo(
+    () =>
+      tables.filter((table) => table.status === TABLE_STATUS.NEEDS_CLEANING),
+    [tables],
+  );
+
+  const selectedTable =
+    tables.find((table) => table.table_id === selectedTableId) || null;
+
+  const selectedTableOrder =
+    activeOrders.find(
+      (order) =>
+        order.table_id === selectedTableId && order.order_type === "dine-in",
+    ) || null;
+
+  // ---- actions ----
+
+  async function runAction(fn) {
+    try {
+      setError(null);
+      await fn();
+      await loadTables();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function handleMarkOccupied(table) {
+    runAction(() => claimTable(table.table_id));
+  }
+
+  function handleOpenOrder(table) {
+    navigate(`/dashboard/orders/table/${table.table_number}`);
+  }
+
+  function handleMarkNeedsCleaning(table) {
+    runAction(() => markNeedsCleaning(table.table_id));
+  }
+
+  function handleMarkCleaned(table) {
+    runAction(() => markEmpty(table.table_id));
+  }
+
+  if (loading) {
+    return <div style={styles.page}>Loading tables…</div>;
   }
 
   return (
-    <div style={styles.container}>
-      {/* Floor Map View */}
-      <div style={styles.floorCard}>
-        <div style={styles.floorHeader}>
-          <div>
-            <h3 style={styles.cardTitle}>Cafe Floor Layout (8 Tables)</h3>
-            <p style={styles.cardSubtitle}>Tap any table card to cycle its state (Empty &rarr; Occupied &rarr; Cleaning)</p>
-          </div>
-          <div style={styles.statusLegend}>
-            <span style={{ ...styles.legendPill, backgroundColor: '#E8F5E9', color: '#2E7D32' }}>● Empty</span>
-            <span style={{ ...styles.legendPill, backgroundColor: '#FFF3E0', color: '#E65100' }}>● Occupied</span>
-            <span style={{ ...styles.legendPill, backgroundColor: '#E3F2FD', color: '#1565C0' }}>● Reserved</span>
-            <span style={{ ...styles.legendPill, backgroundColor: '#FFFDE7', color: '#F57F17' }}>● Needs Cleaning</span>
+    <div style={styles.page}>
+      {error && <div style={styles.errorBanner}>Error: {error}</div>}
+
+      {/* ============ STATS BAR ============ */}
+
+      <div style={styles.statsBar}>
+        <StatCard label="Total Tables" value={stats.total} />
+
+        <StatCard
+          label="Available"
+          value={stats[TABLE_STATUS.EMPTY]}
+          dot="var(--color-success)"
+        />
+
+        <StatCard
+          label="Occupied"
+          value={stats[TABLE_STATUS.OCCUPIED]}
+          dot="var(--color-primary-active)"
+        />
+
+        <StatCard
+          label="Needs Cleaning"
+          value={stats[TABLE_STATUS.NEEDS_CLEANING]}
+          dot="var(--color-danger)"
+        />
+      </div>
+
+      <div style={styles.mainGrid}>
+        {/* ============ FLOOR AREA — ART SWAP POINT ============ */}
+
+        <div style={styles.floorArea}>
+          <div style={styles.tablesGrid}>
+            {tables.map((table) => (
+              <TableCard
+                key={table.table_id}
+                table={table}
+                selected={table.table_id === selectedTableId}
+                onSelect={() => setSelectedTableId(table.table_id)}
+              />
+            ))}
           </div>
         </div>
 
-        <div style={styles.tablesGrid}>
-          {tablesList.map(t => {
-            const { bg, color } = STATUS_COLORS[t.status] || STATUS_COLORS.cleaning
+        {/* ============ DETAIL PANEL ============ */}
 
-            return (
-              <div
-                key={t.id}
-                onClick={() => toggleTableStatus(t.id)}
-                style={{ ...styles.tableBox, backgroundColor: bg, borderColor: color }}
-              >
-                <div style={styles.tableBoxTop}>
-                  <span style={{ ...styles.tableBoxName, color }}>{t.name}</span>
-                  <span style={styles.tableBoxCap}>{t.capacity} Seats</span>
-                </div>
-                <div style={{ ...styles.tableBoxStatus, color }}>
-                  {t.status.toUpperCase()}
-                </div>
-                <div style={styles.tableBoxGuest}>
-                  {t.guest || 'Tap to seat guest'}
-                </div>
+        <div style={styles.detailPanel}>
+          {selectedTable ? (
+            <TableDetail
+              table={selectedTable}
+              activeOrder={selectedTableOrder}
+              onMarkOccupied={() => handleMarkOccupied(selectedTable)}
+              onOpenOrder={() => handleOpenOrder(selectedTable)}
+              onMarkNeedsCleaning={() => handleMarkNeedsCleaning(selectedTable)}
+              onMarkCleaned={() => handleMarkCleaned(selectedTable)}
+            />
+          ) : (
+            <div style={styles.noSelection}>Select a table to see details</div>
+          )}
+
+          {/* ============ NEEDS ATTENTION LIST ============ */}
+
+          <div style={styles.attentionSection}>
+            <h4 style={styles.attentionTitle}>Needs Attention</h4>
+
+            {needsAttention.length === 0 ? (
+              <div style={styles.attentionEmpty}>
+                Nothing needs attention right now
               </div>
-            )
-          })}
+            ) : (
+              needsAttention.map((table) => (
+                <div
+                  key={table.table_id}
+                  style={styles.attentionRow}
+                  onClick={() => setSelectedTableId(table.table_id)}
+                >
+                  <span>Table {table.table_number}</span>
+
+                  <span
+                    style={{
+                      color: STATUS_META[table.status].dot,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {STATUS_META[table.status].label}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
+
+// -------------------------------------------------------------------------
+// Subcomponents
+// -------------------------------------------------------------------------
+
+const StatCard = ({ label, value, dot }) => (
+  <div style={styles.statCard}>
+    <div style={styles.statTop}>
+      <span style={styles.statValue}>{value}</span>
+
+      {dot && (
+        <span
+          style={{
+            ...styles.statDot,
+            backgroundColor: dot,
+          }}
+        />
+      )}
+    </div>
+
+    <div style={styles.statLabel}>{label}</div>
+  </div>
+);
+
+
+const TableCard = ({ table, selected, onSelect }) => {
+  const meta =
+    STATUS_META[table.status] || STATUS_META[TABLE_STATUS.NEEDS_CLEANING];
+
+  const imageSrc = getTableImageSrc(table);
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        position: "relative",
+        cursor: "pointer",
+        borderRadius: "var(--radius-md)",
+        overflow: "hidden",
+        border: selected
+          ? "2px solid var(--color-primary)"
+          : "2px solid var(--color-border)",
+        boxShadow: "none",
+        aspectRatio: "1 / 1",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "var(--color-bg)",
+      }}
+    >
+      <img
+        src={imageSrc}
+        alt={`Table ${table.table_number} (${meta.label})`}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          bottom: 8,
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: "4px 8px",
+          borderRadius: "999px",
+          backgroundColor: "rgba(0, 0, 0, 0.65)",
+          color: "#fff",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          letterSpacing: "0.02em",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+        }}
+      >
+        Table {table.table_number}
+      </div>
+    </div>
+  );
+};
+
+
+
+const TableDetail = ({
+  table,
+  activeOrder,
+  onMarkOccupied,
+  onOpenOrder,
+  onMarkNeedsCleaning,
+  onMarkCleaned,
+}) => {
+  const meta =
+    STATUS_META[table.status] || STATUS_META[TABLE_STATUS.NEEDS_CLEANING];
+
+  return (
+    <div>
+      <div style={styles.detailHeaderRow}>
+        <h3 style={styles.detailTitle}>Table {table.table_number}</h3>
+
+        <span
+          style={{
+            color: meta.dot,
+            fontWeight: 700,
+          }}
+        >
+          {meta.label}
+        </span>
+      </div>
+
+      <div style={styles.detailRow}>
+        <span style={styles.detailLabel}>Capacity</span>
+
+        <span>{table.capacity} guests</span>
+      </div>
+
+      <div style={styles.detailRow}>
+        <span style={styles.detailLabel}>Status</span>
+
+        <span>{meta.label}</span>
+      </div>
+
+      {table.status === TABLE_STATUS.OCCUPIED && (
+        <div style={styles.detailRow}>
+          <span style={styles.detailLabel}>Order</span>
+
+          <span>
+            {activeOrder
+              ? `#${activeOrder.order_number} (${activeOrder.status})`
+              : "No active order"}
+          </span>
+        </div>
+      )}
+
+      <div style={styles.detailActions}>
+        {table.status === TABLE_STATUS.EMPTY && (
+          <button style={styles.primaryBtn} onClick={onMarkOccupied}>
+            Mark as Occupied
+          </button>
+        )}
+
+        {table.status === TABLE_STATUS.OCCUPIED && (
+          <>
+            <button style={styles.primaryBtn} onClick={onOpenOrder}>
+              {activeOrder ? "Continue Order" : "Place Order"}
+            </button>
+
+            <button style={styles.secondaryBtn} onClick={onMarkNeedsCleaning}>
+              Mark as Needs Cleaning
+            </button>
+          </>
+        )}
+
+        {table.status === TABLE_STATUS.NEEDS_CLEANING && (
+          <button style={styles.primaryBtn} onClick={onMarkCleaned}>
+            Mark as Cleaned
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const styles = {
-  container: {
-    maxWidth: '1280px',
-    margin: '0 auto',
-    padding: '0 24px 60px',
+  page: {
+    maxWidth: "1280px",
+    margin: "0 auto",
+    padding: "0 24px 60px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
   },
-  floorCard: {
-    backgroundColor: 'var(--color-surface)',
-    border: '1.5px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    padding: '28px',
-    boxShadow: 'var(--shadow-sm)',
+
+  errorBanner: {
+    padding: "10px 14px",
+    borderRadius: "var(--radius-sm)",
+    backgroundColor: "var(--color-danger-bg)",
+    color: "var(--color-danger)",
+    fontWeight: 600,
   },
-  floorHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '24px',
-    flexWrap: 'wrap',
-    gap: '14px',
+
+  statsBar: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: "12px",
   },
-  cardTitle: {
-    fontSize: '1.25rem',
-    fontWeight: '800',
-    color: 'var(--color-text-main)',
-    marginBottom: '4px',
+
+  statCard: {
+    backgroundColor: "var(--color-surface)",
+    border: "1.5px solid var(--color-border)",
+    borderRadius: "var(--radius-md)",
+    padding: "14px 16px",
   },
-  cardSubtitle: {
-    fontSize: '0.86rem',
-    color: 'var(--color-text-muted)',
+
+  statTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
   },
-  statusLegend: {
-    display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap',
+
+  statValue: {
+    fontSize: "1.6rem",
+    fontWeight: 800,
+    color: "var(--color-text-main)",
   },
-  legendPill: {
-    fontSize: '0.74rem',
-    fontWeight: '700',
-    padding: '3px 8px',
-    borderRadius: 'var(--radius-full)',
+
+  statDot: {
+    width: "9px",
+    height: "9px",
+    borderRadius: "50%",
   },
+
+  statLabel: {
+    fontSize: "0.74rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: "var(--color-text-muted)",
+    marginTop: "4px",
+  },
+
+  mainGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 300px",
+    gap: "20px",
+    alignItems: "start",
+  },
+
+  floorArea: {
+    backgroundColor: "var(--color-surface)",
+    border: "1.5px solid var(--color-border)",
+    borderRadius: "var(--radius-md)",
+    padding: "40px",
+  },
+
   tablesGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-    gap: '18px',
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+    gridAutoRows: "150px", // all table cards will be 150px tall
+    gap: "32px",
   },
-  tableBox: {
-    border: '2px solid',
-    borderRadius: '12px',
-    padding: '18px',
-    cursor: 'pointer',
-    transition: 'transform 0.15s',
+
+  tableCard: {
+    borderRadius: "var(--radius-md)",
+    cursor: "pointer",
   },
-  tableBoxTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '10px',
+
+  tableCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "8px",
   },
-  tableBoxName: {
-    fontSize: '1.15rem',
-    fontWeight: '800',
+
+  tableCardName: {
+    fontWeight: 800,
+    color: "var(--color-text-main)",
   },
-  tableBoxCap: {
-    fontSize: '0.74rem',
-    fontWeight: '600',
-    color: 'var(--color-text-muted)',
+
+  statusDot: {
+    width: "9px",
+    height: "9px",
+    borderRadius: "50%",
   },
-  tableBoxStatus: {
-    fontSize: '0.82rem',
-    fontWeight: '800',
-    letterSpacing: '0.04em',
-    marginBottom: '4px',
+
+  tableCardCap: {
+    fontSize: "0.76rem",
+    color: "var(--color-text-muted)",
   },
-  tableBoxGuest: {
-    fontSize: '0.76rem',
-    color: 'var(--color-text-muted)',
+
+  tableCardStatus: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    marginTop: "4px",
   },
-}
+
+  detailPanel: {
+    backgroundColor: "var(--color-surface)",
+    border: "1.5px solid var(--color-border)",
+    borderRadius: "var(--radius-md)",
+    padding: "20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+  },
+
+  noSelection: {
+    color: "var(--color-text-muted)",
+    fontSize: "0.9rem",
+  },
+
+  detailHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "12px",
+  },
+
+  detailTitle: {
+    fontSize: "1.15rem",
+    fontWeight: 800,
+    color: "var(--color-text-main)",
+  },
+
+  detailRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "0.86rem",
+    padding: "8px 0",
+    borderBottom: "1px solid var(--color-border-light)",
+  },
+
+  detailLabel: {
+    color: "var(--color-text-muted)",
+  },
+
+  detailActions: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    marginTop: "16px",
+  },
+
+  primaryBtn: {
+    padding: "11px",
+    borderRadius: "var(--radius-sm)",
+    border: "none",
+    backgroundColor: "var(--color-primary)",
+    color: "#FFFFFF",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  secondaryBtn: {
+    padding: "11px",
+    borderRadius: "var(--radius-sm)",
+    border: "1px solid var(--color-border)",
+    backgroundColor: "transparent",
+    color: "var(--color-text-main)",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  attentionSection: {
+    borderTop: "1px solid var(--color-border-light)",
+    paddingTop: "16px",
+  },
+
+  attentionTitle: {
+    fontSize: "0.9rem",
+    fontWeight: 800,
+    marginBottom: "10px",
+  },
+
+  attentionEmpty: {
+    fontSize: "0.82rem",
+    color: "var(--color-text-muted)",
+  },
+
+  attentionRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: "0.84rem",
+    padding: "8px 0",
+    cursor: "pointer",
+    borderBottom: "1px solid var(--color-border-light)",
+  },
+};

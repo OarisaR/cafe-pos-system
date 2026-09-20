@@ -46,3 +46,9 @@ PRD.md
 CONTEXT.md
 .agents/
 .agents/rules
+
+# Production Build
+dist/
+build/
+out/
+.vite/
