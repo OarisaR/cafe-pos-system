@@ -6,6 +6,7 @@ import { MODULES } from '../authentication/constants/rbac'
 import { ProtectedRoute, AuthLoadingScreen } from '../authentication/routes/ProtectedRoute'
 
 import { LoginPage } from '../authentication/pages/LoginPage'
+import { EmailConfirmedPage } from '../authentication/pages/EmailConfirmedPage'
 import { DashboardLayout } from '../shared/layout/DashboardLayout'
 
 // Person 1 — Auth, Roles & Reporting
@@ -72,6 +73,8 @@ export const AppRouter = () => (
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
+        {/* ইমেইলের confirm লিংক এখানেই নামে — লগইন ছাড়াই খোলে */}
+        <Route path="/auth/confirmed" element={<EmailConfirmedPage />} />
 
         {/* Entry point */}
         <Route path="/" element={<RootRedirect />} />
