@@ -17,6 +17,14 @@ import {
   X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import {
+  BD_PHONE_PLACEHOLDER,
+  BD_PHONE_HINT,
+  BD_PHONE_ERROR,
+  formatBdPhone,
+  isValidBdPhone,
+  normalizeBdPhone,
+} from '../../shared/lib/phone'
 import { MODULE_DEFINITIONS } from '../constants/permissions'
 
 export const UserSettingsView = () => {
@@ -63,11 +71,16 @@ export const UserSettingsView = () => {
       return
     }
 
+    if (!isValidBdPhone(phone)) {
+      showToast('error', BD_PHONE_ERROR)
+      return
+    }
+
     setIsSavingProfile(true)
     try {
       await updateUserProfile({
         fullName,
-        phone
+        phone: normalizeBdPhone(phone),
       })
       showToast('success', 'Profile information updated successfully!')
     } catch (err) {
@@ -180,14 +193,21 @@ export const UserSettingsView = () => {
                   <Phone size={16} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type="tel"
+                    inputMode="numeric"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+880 1712 345678"
+                    onChange={(e) => setPhone(formatBdPhone(e.target.value))}
+                    placeholder={BD_PHONE_PLACEHOLDER}
                     required
-                    style={{ ...styles.input, paddingLeft: '38px' }}
+                    style={{
+                      ...styles.input,
+                      paddingLeft: '38px',
+                      borderColor: phone && !isValidBdPhone(phone)
+                        ? 'var(--color-danger)'
+                        : undefined,
+                    }}
                   />
                 </div>
-                <span style={styles.hint}>Used for staff directory records and counter shift contact.</span>
+                <span style={styles.hint}>{BD_PHONE_HINT}</span>
               </div>
 
               <button

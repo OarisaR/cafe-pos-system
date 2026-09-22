@@ -184,6 +184,48 @@ export const fetchAllRecipes = async () =>
       )
   )
 
+// -------------------------------------------------------------------------
+// Stock availability
+//
+// `menu_item_availability` view টা supabase_stock_guard.sql চালানোর পর আসে।
+// এটা ইচ্ছাকৃতভাবে ingredients টেবিলের বদলে ব্যবহার করা হয় — cashier
+// ingredients পড়তে পারে না, কিন্তু কাউন্টারে বসে তারই জানা দরকার কোন
+// আইটেম এখন বানানো যাবে না। view এ দাম/খরচ নেই, শুধু নাম আর সংখ্যা।
+//
+// patch টা না চালানো থাকলে null ফেরত আসে, আর UI চুপচাপ আগের মতোই চলে।
+// -------------------------------------------------------------------------
+let availabilitySupported = true
+export const isAvailabilitySupported = () => availabilitySupported
+
+export const fetchMenuAvailability = async () => {
+  if (!availabilitySupported) return null
+
+  const { data, error } = await supabase
+    .from('menu_item_availability')
+    .select('menu_item_id, max_servings, in_stock, is_sellable, short_ingredients, low_ingredients')
+
+  if (error) {
+    if (['PGRST205', '42P01', 'PGRST202'].includes(error.code)) {
+      availabilitySupported = false
+      return null
+    }
+    throw new Error(error.message || 'Could not read stock availability.')
+  }
+
+  const byItem = {}
+  for (const row of data || []) {
+    byItem[row.menu_item_id] = {
+      // null = recipe বসানো নেই, তাই স্টক দিয়ে বিচার করা যাচ্ছে না
+      maxServings: row.max_servings == null ? null : Number(row.max_servings),
+      inStock: row.in_stock !== false,
+      isSellable: row.is_sellable !== false,
+      shortOf: row.short_ingredients || [],
+      lowOf: row.low_ingredients || [],
+    }
+  }
+  return byItem
+}
+
 /** একটা আইটেমের পুরো recipe একসাথে বদলায় (ডেটাবেজ function, atomic) */
 export const saveRecipe = async (menuItemId, rows) =>
   unwrap(

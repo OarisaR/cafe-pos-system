@@ -3,9 +3,18 @@ import React, { useState, useEffect, useMemo } from "react";
 
 import { useParams, useNavigate } from "react-router-dom";
 
-import { MessageSquare, ChevronDown, ListOrdered } from "lucide-react";
+import {
+  AlertTriangle,
+  MessageSquare,
+  ChevronDown,
+  ListOrdered,
+} from "lucide-react";
 
-import { fetchCategories, fetchMenuItems } from "../menu/menuService";
+import {
+  fetchCategories,
+  fetchMenuItems,
+  fetchMenuAvailability,
+} from "../menu/menuService";
 import { useRealtimeRefresh } from "../shared/lib/useRealtimeRefresh";
 import {
   getAllTables,
@@ -80,6 +89,10 @@ export const OrdersPage = () => {
   const [categories, setCategories] = useState([]);
 
   const [menuItems, setMenuItems] = useState([]);
+  // menu_item_id → { inStock, maxServings, shortOf, lowOf }
+  // supabase_stock_guard.sql না চালানো থাকলে null, তখন কোনো আইটেমই
+  // স্টকের কারণে বন্ধ হবে না (আগের মতোই আচরণ)।
+  const [availability, setAvailability] = useState(null);
 
   const [activeCategory, setActiveCategory] = useState("all");
 
@@ -159,6 +172,18 @@ export const OrdersPage = () => {
   // Which ticket is being handed over right now.
   const [handingOverKey, setHandingOverKey] = useState(null);
 
+  /**
+   * কোন আইটেম এখন বানানো যাবে, সেটা ডেটাবেজ থেকে আনা।
+   * ব্যর্থ হলে অর্ডার নেওয়া আটকাবে না — শুধু স্টকের সতর্কতাটা দেখা যাবে না।
+   */
+  async function loadAvailability() {
+    try {
+      setAvailability(await fetchMenuAvailability());
+    } catch (err) {
+      console.warn("Stock availability unavailable:", err.message);
+    }
+  }
+
   async function loadKitchenTickets() {
     try {
       setKitchenTickets(await fetchKitchenTickets());
@@ -190,6 +215,7 @@ export const OrdersPage = () => {
 
       setTables(tableRows);
       setOrderHistory(await getRecentOrders());
+      await loadAvailability();
 
       const liveOrder = order
         ? orderRows.find((row) => row.order_id === order.order_id) || null
@@ -250,6 +276,9 @@ export const OrdersPage = () => {
       }
 
       setMenuItems(items.filter((item) => item.status === "available"));
+
+      // কোন আইটেম এখন বানানো যাবে — কাউন্টারে সেটা সাথে সাথেই দরকার
+      await loadAvailability();
 
       /*
        * Only load an existing order when a table is actually present
@@ -420,6 +449,23 @@ export const OrdersPage = () => {
       ? menuItems
       : menuItems.filter((item) => item.category_id === activeCategory);
 
+  // মেনুর উপরের সতর্কবার্তার জন্য — কোন আইটেম বন্ধ, আর কোন উপকরণের জন্য
+  const outOfStockNames = availability
+    ? menuItems
+        .filter((item) => availability[item.menu_item_id]?.inStock === false)
+        .map((item) => item.name)
+    : [];
+
+  const shortIngredientNames = availability
+    ? [
+        ...new Set(
+          menuItems.flatMap(
+            (item) => availability[item.menu_item_id]?.shortOf || [],
+          ),
+        ),
+      ]
+    : [];
+
   const selectedTable =
     tables.find(
       (table) =>
@@ -445,6 +491,31 @@ export const OrdersPage = () => {
 
   async function handleQuantityChange(menuItem, delta) {
     if (!canEditOrder) return;
+
+    // বাড়ানোর সময় স্টকের সীমা মানা হয়। কমানো সবসময় চলবে।
+    if (delta > 0) {
+      const stock = availability?.[menuItem.menu_item_id];
+
+      if (stock && !stock.inStock) {
+        setError(
+          `${menuItem.name} is out of stock` +
+            (stock.shortOf.length ? ` — no ${stock.shortOf.join(", ")} left.` : "."),
+        );
+        return;
+      }
+
+      const already =
+        cartItems
+          .filter((line) => line.menu_item_id === menuItem.menu_item_id)
+          .reduce((sum, line) => sum + line.quantity, 0) || 0;
+
+      if (stock && stock.maxServings != null && already >= stock.maxServings) {
+        setError(
+          `Only ${stock.maxServings} ${menuItem.name} can be made with the stock on hand.`,
+        );
+        return;
+      }
+    }
 
     try {
       setError(null);
@@ -730,6 +801,8 @@ export const OrdersPage = () => {
       await sendRoundToKitchen(order.order_id);
 
       setCartItems(await getOrderItems(order.order_id));
+      // এই রাউন্ডে স্টক কমেছে — কার্ডগুলো এখনই হালনাগাদ হওয়া দরকার
+      await loadAvailability();
     } catch (err) {
       setError(err.message);
     }
@@ -848,6 +921,22 @@ export const OrdersPage = () => {
           </div>
         )}
 
+        {/* একটানা যা যা ফুরিয়ে গেছে, তার সারাংশ — আলাদা করে খুঁজতে হয় না */}
+        {outOfStockNames.length > 0 && (
+          <div style={styles.stockBanner}>
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span>
+              <strong>
+                {outOfStockNames.length}{" "}
+                {outOfStockNames.length === 1 ? "item is" : "items are"} out of stock
+              </strong>
+              {shortIngredientNames.length > 0 && (
+                <> — waiting on {shortIngredientNames.join(", ")}</>
+              )}
+            </span>
+          </div>
+        )}
+
         {/* Hide the menu while the cashier is still choosing a table */}
         <div
           style={{
@@ -868,12 +957,20 @@ export const OrdersPage = () => {
               (cartItem) => cartItem.menu_item_id === item.menu_item_id,
             );
 
+            // availability এখনো আসেনি (বা patch চালানো হয়নি) হলে undefined —
+            // তখন কার্ডটা আগের মতোই স্বাভাবিক থাকে
+            const stock = availability?.[item.menu_item_id];
+
             return (
               <OrderMenuItemCard
                 key={item.menu_item_id}
                 item={item}
                 categoryName={categoryName}
                 disabled={!canEditOrder}
+                soldOut={stock ? !stock.inStock : false}
+                shortOf={stock?.shortOf || []}
+                lowOf={stock?.lowOf || []}
+                maxServings={stock?.maxServings ?? null}
                 quantity={line?.quantity || 0}
                 onSelect={() => handleQuantityChange(item, 1)}
                 onIncrement={() => handleQuantityChange(item, 1)}
@@ -1432,6 +1529,20 @@ const styles = {
     backgroundRepeat: "no-repeat",
     backgroundPosition: "right 12px center",
     backgroundSize: "14px",
+  },
+
+  stockBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 14px",
+    marginBottom: "12px",
+    borderRadius: "var(--radius-sm)",
+    backgroundColor: "var(--color-warning-bg)",
+    border: "1px solid var(--color-warning)",
+    color: "var(--color-warning)",
+    fontSize: "0.82rem",
+    lineHeight: 1.4,
   },
 
   lockedNote: {

@@ -23,6 +23,15 @@ import {
   Layers
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import {
+  BD_PHONE_DEFAULT,
+  BD_PHONE_PLACEHOLDER,
+  BD_PHONE_HINT,
+  BD_PHONE_ERROR,
+  formatBdPhone,
+  isValidBdPhone,
+  normalizeBdPhone,
+} from '../../shared/lib/phone'
 
 /** Supabase timestamptz → "17 Sep 2026, 02:15 PM" (Asia/Dhaka) */
 const formatStamp = (value) => {
@@ -106,7 +115,7 @@ export const StaffManagementView = () => {
   const handleOpenCreateModal = () => {
     setFullName('')
     setEmail('')
-    setPhone('+880 17')
+    setPhone(BD_PHONE_DEFAULT)
     generateRandomPassword()
     setSelectedGroupId(permissionGroups[3]?.id || permissionGroups[1]?.id || '')
     setIsCreateModalOpen(true)
@@ -116,6 +125,11 @@ export const StaffManagementView = () => {
     e.preventDefault()
     if (!fullName.trim() || !email.trim() || !phone.trim() || !initialPassword) {
       showToast('error', 'Please fill in all staff fields.')
+      return
+    }
+
+    if (!isValidBdPhone(phone)) {
+      showToast('error', BD_PHONE_ERROR)
       return
     }
 
@@ -129,7 +143,7 @@ export const StaffManagementView = () => {
       const result = await createStaffUser({
         fullName,
         email,
-        phone,
+        phone: normalizeBdPhone(phone),
         initialPassword,
         groupId: selectedGroupId || null
       })
@@ -193,9 +207,18 @@ export const StaffManagementView = () => {
   const handleSavePhone = async (e) => {
     e.preventDefault()
     if (!phoneEditingStaff) return
+
+    if (!isValidBdPhone(editingPhoneInput)) {
+      showToast('error', BD_PHONE_ERROR)
+      return
+    }
+
     setIsSavingPhone(true)
     try {
-      await updateStaffPhone(phoneEditingStaff.id, editingPhoneInput)
+      await updateStaffPhone(
+        phoneEditingStaff.id,
+        normalizeBdPhone(editingPhoneInput),
+      )
       showToast('success', `Phone number for ${phoneEditingStaff.full_name || phoneEditingStaff.email} updated!`)
       setPhoneEditingStaff(null)
       await loadStaff()
@@ -423,7 +446,7 @@ export const StaffManagementView = () => {
                           style={styles.phoneClickable}
                           onClick={() => {
                             setPhoneEditingStaff(st)
-                            setEditingPhoneInput(st.phone || '+880 17')
+                            setEditingPhoneInput(st.phone || BD_PHONE_DEFAULT)
                           }}
                           title="Click to edit or set phone number"
                         >
@@ -576,13 +599,22 @@ export const StaffManagementView = () => {
                   <Phone size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type="tel"
-                    placeholder="+880 1712 345678"
+                    inputMode="numeric"
+                    placeholder={BD_PHONE_PLACEHOLDER}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    /* টাইপ করার সাথে সাথেই +880 বসে যায়, ১১ অঙ্কের বেশি নেয় না */
+                    onChange={(e) => setPhone(formatBdPhone(e.target.value))}
                     required
-                    style={{ ...styles.input, paddingLeft: '36px' }}
+                    style={{
+                      ...styles.input,
+                      paddingLeft: '36px',
+                      borderColor: phone && !isValidBdPhone(phone)
+                        ? 'var(--color-danger)'
+                        : undefined,
+                    }}
                   />
                 </div>
+                <span style={styles.fieldHint}>{BD_PHONE_HINT}</span>
               </div>
 
               {/* Initial Password with Generator */}
@@ -808,15 +840,23 @@ export const StaffManagementView = () => {
                   <Phone size={15} color="var(--color-text-muted)" style={styles.fieldIcon} />
                   <input
                     type="tel"
-                    placeholder="+880 1712 345678"
+                    inputMode="numeric"
+                    placeholder={BD_PHONE_PLACEHOLDER}
                     value={editingPhoneInput}
-                    onChange={(e) => setEditingPhoneInput(e.target.value)}
+                    onChange={(e) => setEditingPhoneInput(formatBdPhone(e.target.value))}
                     required
                     autoFocus
-                    style={{ ...styles.input, paddingLeft: '36px' }}
+                    style={{
+                      ...styles.input,
+                      paddingLeft: '36px',
+                      borderColor:
+                        editingPhoneInput && !isValidBdPhone(editingPhoneInput)
+                          ? 'var(--color-danger)'
+                          : undefined,
+                    }}
                   />
                 </div>
-                <span style={styles.fieldHint}>Saved to staff directory records and Supabase profile.</span>
+                <span style={styles.fieldHint}>{BD_PHONE_HINT}</span>
               </div>
 
               <div style={styles.modalActions}>

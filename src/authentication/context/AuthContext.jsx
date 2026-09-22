@@ -6,7 +6,7 @@ import {
   MODULES,
   normalizeRole,
   ROLE_MODULE_ACCESS,
-  ROLE_LANDING_PATH,
+  resolveLandingPath,
   getModulesForMatrix,
 } from '../constants/rbac'
 import {
@@ -15,6 +15,7 @@ import {
   saveStoredPermissionGroups,
   getRoleForGroup,
   buildAccessMatrixFromGroup,
+  RBAC_MODULE_TO_PERMISSION,
   mapGroupRowToGroup,
   mapGroupToRow,
 } from '../constants/permissions'
@@ -74,6 +75,9 @@ export const AuthProvider = ({ children }) => {
 
   // Dynamic Permission Groups State
   const [permissionGroups, setPermissionGroups] = useState(() => getStoredPermissionGroups())
+  // Supabase থেকে group গুলো আসার *আগেই* redirect করলে custom group এ বসা
+  // user কে তার base role এর পেজে পাঠিয়ে দেওয়া হবে — যেটায় তার অনুমতি নেই।
+  const [groupsLoaded, setGroupsLoaded] = useState(false)
 
   // Idle session state
   const [showIdleWarning, setShowIdleWarning] = useState(false)
@@ -732,6 +736,7 @@ export const AuthProvider = ({ children }) => {
 
       setPermissionGroups(merged)
       saveStoredPermissionGroups(merged)
+      setGroupsLoaded(true)
       return merged
     } catch (err) {
       // টেবিলটা এখনো তৈরি হয়নি (supabase_permission_groups.sql চালানো হয়নি)
@@ -740,6 +745,8 @@ export const AuthProvider = ({ children }) => {
         'permission_groups table unavailable, using local cache:',
         err.message
       )
+      // ব্যর্থ হলেও অপেক্ষা থামাতে হবে, নাহলে লোডারেই আটকে থাকবে
+      setGroupsLoaded(true)
       return null
     }
   }, [])
@@ -786,7 +793,16 @@ export const AuthProvider = ({ children }) => {
       const { error: updErr } = await supabase
         .from('permission_groups')
         .upsert(mapGroupToRow(target))
-      if (updErr) console.warn('Permission group sync failed:', updErr.message)
+
+      // ⚠️ আগে এটা শুধু console এ warning দিত — তাই owner "saved" দেখতেন
+      // অথচ সার্ভারে কিছুই বদলাত না, আর অন্য ব্রাউজারে পুরনো অধিকারই থাকত।
+      if (updErr) {
+        console.error('Permission group update failed:', updErr)
+        throw new Error(
+          `Could not save this role to the database: ${updErr.message}. ` +
+            'Run supabase/patches/supabase_permission_groups.sql, then try again.'
+        )
+      }
     }
   }
 
@@ -884,17 +900,14 @@ export const AuthProvider = ({ children }) => {
 
   const visibleModules = user ? getModulesForMatrix(effectiveAccess) : []
 
-  // Custom role এর জন্য ROLE_LANDING_PATH কাজে লাগে না (সেই পেজে হয়তো
-  // অনুমতিই নেই) — তাই যে module গুলো খোলা, তার প্রথমটাতে পাঠানো হয়।
-  const landingPath = isCustomGroup
-    ? visibleModules[0]?.path || '/dashboard/profile'
-    : ROLE_LANDING_PATH[activeRole] || '/dashboard/orders'
-
   /**
    * এই user module টা "দেখতে" পারবে কিনা।
    * Custom group হলে group এর matrix ই চূড়ান্ত।
    * Default group হলে আগের মতো: role matrix, group শুধু সংকুচিত করতে পারে।
    */
+  // rbac এর module id কে group এর toggle key তে অনুবাদ করে
+  const groupKeyFor = (moduleId) => RBAC_MODULE_TO_PERMISSION[moduleId] || moduleId
+
   const canAccess = (moduleId) => {
     if (!user) return false
     if (isCustomGroup) return Boolean(effectiveAccess[moduleId]?.view)
@@ -902,7 +915,7 @@ export const AuthProvider = ({ children }) => {
     const roleRule = ROLE_MODULE_ACCESS[activeRole]?.[moduleId]
     if (!roleRule?.view) return false
 
-    const groupRule = assignedGroup?.permissions?.[moduleId]
+    const groupRule = assignedGroup?.permissions?.[groupKeyFor(moduleId)]
     if (groupRule && groupRule.view === false) return false
 
     return true
@@ -916,11 +929,21 @@ export const AuthProvider = ({ children }) => {
     const roleRule = ROLE_MODULE_ACCESS[activeRole]?.[moduleId]
     if (!roleRule?.edit) return false
 
-    const groupRule = assignedGroup?.permissions?.[moduleId]
+    const groupRule = assignedGroup?.permissions?.[groupKeyFor(moduleId)]
     if (groupRule && groupRule.edit === false) return false
 
     return true
   }
+
+  // ---------------------------------------------------------------------
+  // কোথায় নামবে — role এর পছন্দ নয়, যা সে আসলে খুলতে পারে সেটাই।
+  // এখানেই সেই বাগটা ঠেকানো হয় যেখানে custom group এ বসা user কে
+  // /dashboard/tables এ পাঠিয়ে "Access Restricted" দেখানো হচ্ছিল।
+  // ---------------------------------------------------------------------
+  const getLandingPath = (preferred = null) =>
+    resolveLandingPath(activeRole, canAccess, preferred)
+
+  const landingPath = getLandingPath()
 
   const value = {
     user,
@@ -934,6 +957,8 @@ export const AuthProvider = ({ children }) => {
     canEdit,
     visibleModules,
     landingPath,
+    getLandingPath,
+    groupsLoaded,
     initializing,
     loading,
     error,

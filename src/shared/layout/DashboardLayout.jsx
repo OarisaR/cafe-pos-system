@@ -11,7 +11,7 @@ import { IdleWarningModal } from '../../authentication/components/IdleWarningMod
  * আর মাঝখানে <Outlet /> — সেখানেই route অনুযায়ী আসল পেজ বসে।
  */
 export const DashboardLayout = () => {
-  const { profile, currentRoleInfo } = useAuth()
+  const { currentRoleInfo } = useAuth()
   const location = useLocation()
   const [time, setTime] = useState('')
 
@@ -69,10 +69,6 @@ export const DashboardLayout = () => {
             <div style={styles.clockPill}>
               <Clock size={13} color="var(--color-primary-active)" />
               <span>{time || 'Dhaka'}</span>
-            </div>
-
-            <div style={styles.avatar}>
-              {(profile?.full_name || '?').charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
@@ -158,19 +154,6 @@ const styles = {
     fontSize: '0.78rem',
     fontWeight: '700',
     color: 'var(--color-text-main)',
-  },
-  avatar: {
-    width: '34px',
-    height: '34px',
-    borderRadius: '50%',
-    backgroundColor: 'var(--color-primary)',
-    color: '#FFFFFF',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: '700',
-    fontSize: '0.85rem',
-    flexShrink: 0,
   },
   workspace: {
     flex: 1,

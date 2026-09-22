@@ -11,6 +11,7 @@ import { ROLES, MODULES } from './rbac'
 export const MODULE_KEYS = {
   REPORTS: 'reports',
   ORDERS: 'orders',
+  TRANSACTIONS: 'transactions',
   KITCHEN: 'kitchen',
   TABLES: 'tables',
   BILLING: 'billing',
@@ -19,12 +20,12 @@ export const MODULE_KEYS = {
   CANCELLATIONS: 'cancellations',
   STAFF: 'staff',
   PERMISSIONS: 'permissions',
-  SETTINGS: 'settings',
 }
 
 export const MODULE_DEFINITIONS = [
   { id: MODULE_KEYS.REPORTS, label: 'Overview & Reports', desc: 'Daily revenue analytics, gross profit margins & NBR VAT' },
-  { id: MODULE_KEYS.ORDERS, label: 'Orders & Register', desc: 'Order creation, barista drink notes & kitchen queue' },
+  { id: MODULE_KEYS.ORDERS, label: 'Orders & POS', desc: 'Take a new order — pick a table, add items & send to kitchen' },
+  { id: MODULE_KEYS.TRANSACTIONS, label: 'All Transactions', desc: 'Read-only history of every order — who took it, what, when & how much' },
   { id: MODULE_KEYS.KITCHEN, label: 'Kitchen Display', desc: 'Live ticket queue — prepare, mark ready and hand over' },
   { id: MODULE_KEYS.TABLES, label: 'Tables & Floor Map', desc: 'Real-time table status, seating capacity & occupancy' },
   { id: MODULE_KEYS.BILLING, label: 'Billing & Payments', desc: 'Payment settlement (Cash, bKash, Nagad, Card) & invoices' },
@@ -33,7 +34,6 @@ export const MODULE_DEFINITIONS = [
   { id: MODULE_KEYS.CANCELLATIONS, label: 'Cancellation Requests', desc: 'Approve or reject guest cancellations before payment & write the complaint note' },
   { id: MODULE_KEYS.STAFF, label: 'Staff Management', desc: 'Staff directory, email invites & permission group assignment' },
   { id: MODULE_KEYS.PERMISSIONS, label: 'Permission Groups', desc: 'Create custom roles & configure View/Edit rights per module' },
-  { id: MODULE_KEYS.SETTINGS, label: 'System Settings', desc: 'NBR VAT configuration, cafe profile & hardware setup' },
 ]
 
 /**
@@ -43,6 +43,7 @@ export const MODULE_DEFINITIONS = [
 export const PERMISSION_MODULE_TO_RBAC = {
   [MODULE_KEYS.REPORTS]: MODULES.DASHBOARD,
   [MODULE_KEYS.ORDERS]: MODULES.ORDERS,
+  [MODULE_KEYS.TRANSACTIONS]: MODULES.TRANSACTIONS,
   [MODULE_KEYS.KITCHEN]: MODULES.KITCHEN,
   [MODULE_KEYS.TABLES]: MODULES.TABLES,
   [MODULE_KEYS.BILLING]: MODULES.BILLING,
@@ -51,21 +52,31 @@ export const PERMISSION_MODULE_TO_RBAC = {
   [MODULE_KEYS.CANCELLATIONS]: MODULES.CANCELLATIONS,
   [MODULE_KEYS.STAFF]: MODULES.STAFF,
   [MODULE_KEYS.PERMISSIONS]: MODULES.PERMISSIONS,
-  [MODULE_KEYS.SETTINGS]: MODULES.SETTINGS,
 }
+
+/**
+ * উল্টো ম্যাপ: rbac module id → group এর toggle key.
+ * ⚠️ দুটো নাম সব জায়গায় এক নয় — MODULES.DASHBOARD হলো 'dashboard' কিন্তু
+ *    group এ সেটার toggle এর নাম 'reports'; MODULES.STAFF হলো 'users'
+ *    কিন্তু toggle এর নাম 'staff'. তাই সরাসরি id দিয়ে খোঁজা যাবে না।
+ */
+export const RBAC_MODULE_TO_PERMISSION = Object.fromEntries(
+  Object.entries(PERMISSION_MODULE_TO_RBAC).map(([key, rbacId]) => [rbacId, key])
+)
 
 export const DEFAULT_PERMISSION_GROUPS = [
   {
     id: 'grp_super_admin',
     name: 'Owner (Super Admin)',
     role: ROLES.OWNER,
-    description: 'Master unrestricted control over all modules, staff, financial settings, and permission groups.',
+    description: 'Master unrestricted control over all modules, staff, and permission groups.',
     color: '#8B9A6E',
     bgColor: 'rgba(139, 154, 110, 0.16)',
     isDefault: true,
     permissions: {
       reports: { view: true, edit: true },
       orders: { view: true, edit: true },
+      transactions: { view: true, edit: false },
       kitchen: { view: true, edit: true },
       tables: { view: true, edit: true },
       billing: { view: true, edit: true },
@@ -74,7 +85,6 @@ export const DEFAULT_PERMISSION_GROUPS = [
       cancellations: { view: true, edit: true },
       staff: { view: true, edit: true },
       permissions: { view: true, edit: true },
-      settings: { view: true, edit: true },
     }
   },
   {
@@ -88,6 +98,7 @@ export const DEFAULT_PERMISSION_GROUPS = [
     permissions: {
       reports: { view: true, edit: true },
       orders: { view: true, edit: true },
+      transactions: { view: true, edit: false },
       kitchen: { view: true, edit: true },
       tables: { view: true, edit: true },
       billing: { view: true, edit: true },
@@ -96,7 +107,6 @@ export const DEFAULT_PERMISSION_GROUPS = [
       cancellations: { view: true, edit: true },
       staff: { view: false, edit: false },
       permissions: { view: false, edit: false },
-      settings: { view: false, edit: false },
     }
   },
   {
@@ -110,6 +120,7 @@ export const DEFAULT_PERMISSION_GROUPS = [
     permissions: {
       reports: { view: false, edit: false },
       orders: { view: true, edit: true },
+      transactions: { view: false, edit: false },
       kitchen: { view: false, edit: false },
       tables: { view: true, edit: true },
       billing: { view: true, edit: true },
@@ -118,7 +129,6 @@ export const DEFAULT_PERMISSION_GROUPS = [
       cancellations: { view: true, edit: false },
       staff: { view: false, edit: false },
       permissions: { view: false, edit: false },
-      settings: { view: false, edit: false },
     }
   },
   {
@@ -132,6 +142,7 @@ export const DEFAULT_PERMISSION_GROUPS = [
     permissions: {
       reports: { view: false, edit: false },
       orders: { view: true, edit: false },
+      transactions: { view: false, edit: false },
       kitchen: { view: true, edit: true },
       tables: { view: true, edit: true },
       billing: { view: false, edit: false },
@@ -140,7 +151,6 @@ export const DEFAULT_PERMISSION_GROUPS = [
       cancellations: { view: false, edit: false },
       staff: { view: false, edit: false },
       permissions: { view: false, edit: false },
-      settings: { view: false, edit: false },
     }
   }
 ]

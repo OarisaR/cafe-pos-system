@@ -55,12 +55,15 @@ export const PermissionGroupsView = () => {
   const { 
     permissionGroups, 
     createPermissionGroup, 
+    updatePermissionGroup,
     deletePermissionGroup,
     fetchStaffMembers 
   } = useAuth()
 
   const [staffList, setStaffList] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
+  // null হলে নতুন group বানানো হচ্ছে, নাহলে এই group টা edit করা হচ্ছে
+  const [editingGroup, setEditingGroup] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
   const [inspectGroup, setInspectGroup] = useState(null)
 
@@ -94,6 +97,50 @@ export const PermissionGroupsView = () => {
     setTimeout(() => setToastMessage(null), 3500)
   }
 
+  /** ফর্মটা খালি করে "নতুন group" অবস্থায় নিয়ে যায় */
+  const resetForm = () => {
+    setGroupName('')
+    setDescription('')
+    setSelectedColor(COLOR_PRESETS[0])
+    const initial = {}
+    MODULE_DEFINITIONS.forEach((m) => {
+      initial[m.id] = { view: true, edit: false }
+    })
+    setPermissionsState(initial)
+  }
+
+  const openCreateModal = () => {
+    setEditingGroup(null)
+    resetForm()
+    setIsModalOpen(true)
+  }
+
+  /**
+   * চালু group টার বর্তমান অবস্থা ফর্মে তুলে দেয়।
+   * group এ যে module এর কথা লেখা নেই সেটা বন্ধ ধরা হয় — নাহলে পরে
+   * যোগ হওয়া নতুন module গুলো ভুল করে চালু দেখাত।
+   */
+  const openEditModal = (group) => {
+    setEditingGroup(group)
+    setGroupName(group.name || '')
+    setDescription(group.description || '')
+    setSelectedColor(
+      COLOR_PRESETS.find((c) => c.color === group.color) || COLOR_PRESETS[0]
+    )
+    const loaded = {}
+    MODULE_DEFINITIONS.forEach((m) => {
+      const p = group.permissions?.[m.id]
+      loaded[m.id] = { view: Boolean(p?.view), edit: Boolean(p?.edit) }
+    })
+    setPermissionsState(loaded)
+    setIsModalOpen(true)
+  }
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingGroup(null)
+  }
+
   const handleTogglePerm = (moduleId, type) => {
     setPermissionsState(prev => {
       const current = prev[moduleId] || { view: false, edit: false }
@@ -124,26 +171,32 @@ export const PermissionGroupsView = () => {
     setPermissionsState(cleared)
   }
 
-  const handleCreateGroupSubmit = async (e) => {
+  const handleSubmitGroup = async (e) => {
     e.preventDefault()
-    if (!groupName.trim()) return
+    const name = groupName.trim()
+    if (!name) return
+
+    const payload = {
+      name,
+      description: description.trim() || 'Custom operational permission group.',
+      color: selectedColor.color,
+      bgColor: selectedColor.bg,
+      permissions: permissionsState,
+    }
 
     try {
-      await createPermissionGroup({
-        name: groupName.trim(),
-        description: description.trim() || 'Custom operational permission group.',
-        color: selectedColor.color,
-        bgColor: selectedColor.bg,
-        permissions: permissionsState,
-      })
-
-      showToast('success', `Permission group '${groupName.trim()}' created successfully.`)
-      setIsModalOpen(false)
-      setGroupName('')
-      setDescription('')
-      setSelectedColor(COLOR_PRESETS[0])
+      if (editingGroup) {
+        await updatePermissionGroup(editingGroup.id, payload)
+        // এই group এ বসা staff পরের বার পেজ খুললেই নতুন অধিকার পাবে
+        showToast('success', `'${name}' updated. Staff in this group get the new access on their next page load.`)
+      } else {
+        await createPermissionGroup(payload)
+        showToast('success', `Permission group '${name}' created successfully.`)
+      }
+      closeModal()
+      resetForm()
     } catch (err) {
-      showToast('error', err.message || 'Failed to create permission group.')
+      showToast('error', err.message || 'Failed to save permission group.')
     }
   }
 
@@ -210,7 +263,7 @@ export const PermissionGroupsView = () => {
 
           <div style={{ marginTop: '16px' }}>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={openCreateModal}
               style={styles.createBtn}
             >
               <Plus size={16} />
@@ -300,13 +353,22 @@ export const PermissionGroupsView = () => {
                 </div>
 
                 {!group.isDefault && (
-                  <button
-                    onClick={() => setGroupToDelete(group)}
-                    style={styles.deleteGroupBtn}
-                    title={`Delete '${group.name}'`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div style={styles.cardActions}>
+                    <button
+                      onClick={() => openEditModal(group)}
+                      style={styles.editGroupBtn}
+                      title={`Edit '${group.name}'`}
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => setGroupToDelete(group)}
+                      style={styles.deleteGroupBtn}
+                      title={`Delete '${group.name}'`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -360,13 +422,25 @@ export const PermissionGroupsView = () => {
                   <span>{staffCount} {staffCount === 1 ? 'staff member' : 'staff members'}</span>
                 </div>
 
-                <button
-                  onClick={() => setInspectGroup(group)}
-                  style={styles.inspectBtn}
-                >
-                  <Eye size={13} />
-                  <span>View Details</span>
-                </button>
+                <div style={styles.cardActions}>
+                  <button
+                    onClick={() => setInspectGroup(group)}
+                    style={styles.inspectBtn}
+                  >
+                    <Eye size={13} />
+                    <span>View Details</span>
+                  </button>
+
+                  {!group.isDefault && (
+                    <button
+                      onClick={() => openEditModal(group)}
+                      style={styles.editAccessBtn}
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit Access</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )
@@ -456,20 +530,26 @@ export const PermissionGroupsView = () => {
           Create Permission Group Modal
          ========================================================================= */}
       {isModalOpen && (
-        <div style={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
+        <div style={styles.modalOverlay} onClick={closeModal}>
           <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <div>
-                <h3 style={styles.modalTitle}>Create Permission Role</h3>
-                <p style={styles.modalSubtitle}>Define operational role, visual theme, and module access</p>
+                <h3 style={styles.modalTitle}>
+                  {editingGroup ? `Edit '${editingGroup.name}'` : 'Create Permission Role'}
+                </h3>
+                <p style={styles.modalSubtitle}>
+                  {editingGroup
+                    ? 'Add or remove module access for this role'
+                    : 'Define operational role, visual theme, and module access'}
+                </p>
               </div>
 
-              <button onClick={() => setIsModalOpen(false)} style={styles.closeBtn}>
+              <button onClick={closeModal} style={styles.closeBtn}>
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateGroupSubmit} style={styles.form}>
+            <form onSubmit={handleSubmitGroup} style={styles.form}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Role Title *</label>
                 <input
@@ -586,7 +666,7 @@ export const PermissionGroupsView = () => {
               <div style={styles.modalActions}>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   style={styles.cancelBtn}
                 >
                   Cancel
@@ -595,8 +675,8 @@ export const PermissionGroupsView = () => {
                   type="submit"
                   style={styles.submitBtn}
                 >
-                  <Plus size={16} />
-                  <span>Create Role Group</span>
+                  {editingGroup ? <Check size={16} /> : <Plus size={16} />}
+                  <span>{editingGroup ? 'Save Changes' : 'Create Role Group'}</span>
                 </button>
               </div>
             </form>
@@ -846,6 +926,37 @@ const styles = {
     backgroundColor: 'rgba(98, 111, 72, 0.12)',
     padding: '3px 8px',
     borderRadius: 'var(--radius-full)',
+  },
+  cardActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  editGroupBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '30px',
+    height: '30px',
+    minHeight: '30px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-border)',
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-primary-active)',
+    flexShrink: 0,
+  },
+  editAccessBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '7px 13px',
+    minHeight: '34px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1.5px solid var(--color-primary)',
+    backgroundColor: 'var(--color-primary-subtle)',
+    color: 'var(--color-primary-active)',
+    fontSize: '0.78rem',
+    fontWeight: '700',
   },
   deleteGroupBtn: {
     background: 'none',

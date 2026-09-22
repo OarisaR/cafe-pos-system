@@ -15,14 +15,13 @@ import {
   Package,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { ROLE_LANDING_PATH } from '../constants/rbac'
 
 /**
  * পুরো স্ক্রিন জুড়ে Login পেজ — অ্যাপের একমাত্র প্রবেশপথ।
  * localhost:5173 এ গেলে সবার আগে এই পেজটাই আসবে।
  */
 export const LoginPage = () => {
-  const { login, user, role, initializing, error, setError } = useAuth()
+  const { login, user, initializing, error, setError } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -48,10 +47,11 @@ export const LoginPage = () => {
     }
   }, [])
 
-  // ইতিমধ্যে লগইন করা থাকলে সরাসরি নিজের dashboard এ পাঠিয়ে দেওয়া হয়
+  // ইতিমধ্যে লগইন করা থাকলে সরাসরি নিজের dashboard এ পাঠিয়ে দেওয়া হয়।
+  // কোন পেজে নামবে সেটা এখানে ঠিক করা হয় না — `/` এর RootRedirect করে,
+  // কারণ profile আর permission group দুটোই তখন হাতে থাকে।
   if (!initializing && user) {
-    const target = location.state?.from || ROLE_LANDING_PATH[role] || '/dashboard/orders'
-    return <Navigate to={target} replace />
+    return <Navigate to="/" replace state={{ from: location.state?.from }} />
   }
 
   const handleSubmit = async (e) => {
@@ -61,10 +61,10 @@ export const LoginPage = () => {
     setSubmitting(true)
     setNotice(null)
     try {
-      const result = await login(email, password)
-      const target =
-        location.state?.from || ROLE_LANDING_PATH[result.profile?.role] || '/dashboard/orders'
-      navigate(target, { replace: true })
+      await login(email, password)
+      // role দেখে এখানে পেজ ঠিক করা হয় না — permission group এ সেই module
+      // বন্ধ থাকতে পারে। `/` এ পাঠালে RootRedirect আসল অনুমতি দেখে নামাবে।
+      navigate('/', { replace: true, state: { from: location.state?.from } })
     } catch {
       // error টা AuthContext এ সেট হয়ে যায়, নিচে ব্যানারে দেখা যাবে
     } finally {
