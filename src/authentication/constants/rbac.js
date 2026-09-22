@@ -41,7 +41,7 @@ export const ROLE_INFO = {
     badgeText: 'Owner',
     color: '#8B9A6E',
     bgColor: 'rgba(139, 154, 110, 0.15)',
-    description: 'Unrestricted master access to all operations, transactions, inventory, staff, and system settings.',
+    description: 'Unrestricted master access to all operations, transactions, inventory, staff, and permission groups.',
   },
   [ROLES.MANAGER]: {
     id: ROLES.MANAGER,
@@ -76,6 +76,7 @@ export const ROLE_INFO = {
 export const MODULES = {
   DASHBOARD: 'dashboard',
   ORDERS: 'orders',
+  TRANSACTIONS: 'transactions',
   KITCHEN: 'kitchen',
   TABLES: 'tables',
   BILLING: 'billing',
@@ -85,7 +86,6 @@ export const MODULES = {
   STAFF: 'users',
   PERMISSIONS: 'permissions',
   USER_SETTINGS: 'profile',
-  SETTINGS: 'settings',
 }
 
 // ==========================================================================
@@ -108,8 +108,18 @@ export const MODULE_CONFIG = [
     path: '/dashboard/orders',
     title: 'Orders & POS',
     shortTitle: 'Orders',
-    description: 'Counter register, order entry, kitchen queue & status tracking',
+    description: 'Take a new order — pick a table, add items & send to kitchen',
     iconName: 'ShoppingBag',
+    group: 'OPERATIONS & POS',
+    teamOwner: 'Person 2',
+  },
+  {
+    id: MODULES.TRANSACTIONS,
+    path: '/dashboard/transactions',
+    title: 'All Transactions',
+    shortTitle: 'Transactions',
+    description: 'Every order on record — who took it, what, when, where & how much',
+    iconName: 'ReceiptText',
     group: 'OPERATIONS & POS',
     teamOwner: 'Person 2',
   },
@@ -198,16 +208,6 @@ export const MODULE_CONFIG = [
     teamOwner: 'Person 1',
   },
   {
-    id: MODULES.SETTINGS,
-    path: '/dashboard/settings',
-    title: 'System Settings',
-    shortTitle: 'System',
-    description: 'NBR VAT configuration, cafe profile & hardware setup',
-    iconName: 'Settings',
-    group: 'ADMINISTRATION',
-    teamOwner: 'Person 4',
-  },
-  {
     id: MODULES.USER_SETTINGS,
     path: '/dashboard/profile',
     title: 'My Profile',
@@ -241,6 +241,7 @@ export const ROLE_MODULE_ACCESS = {
   [ROLES.OWNER]: {
     [MODULES.DASHBOARD]: FULL,
     [MODULES.ORDERS]: FULL,
+    [MODULES.TRANSACTIONS]: FULL,
     [MODULES.KITCHEN]: FULL,
     [MODULES.TABLES]: FULL,
     [MODULES.MENU]: FULL,
@@ -249,14 +250,14 @@ export const ROLE_MODULE_ACCESS = {
     [MODULES.CANCELLATIONS]: FULL,
     [MODULES.STAFF]: FULL,
     [MODULES.PERMISSIONS]: FULL,
-    [MODULES.SETTINGS]: FULL,
     [MODULES.USER_SETTINGS]: FULL,
   },
 
-  // Manager — অপারেশন সব, কিন্তু staff/permission/system settings নেই
+  // Manager — অপারেশন সব, কিন্তু staff ও permission group নেই
   [ROLES.MANAGER]: {
     [MODULES.DASHBOARD]: FULL,
     [MODULES.ORDERS]: FULL,
+    [MODULES.TRANSACTIONS]: FULL,
     [MODULES.KITCHEN]: FULL,
     [MODULES.TABLES]: FULL,
     [MODULES.MENU]: FULL,
@@ -266,7 +267,6 @@ export const ROLE_MODULE_ACCESS = {
     [MODULES.CANCELLATIONS]: FULL,
     [MODULES.STAFF]: NONE,
     [MODULES.PERMISSIONS]: NONE,
-    [MODULES.SETTINGS]: NONE,
     [MODULES.USER_SETTINGS]: FULL,
   },
 
@@ -275,6 +275,7 @@ export const ROLE_MODULE_ACCESS = {
   [ROLES.CASHIER]: {
     [MODULES.DASHBOARD]: NONE,
     [MODULES.ORDERS]: FULL,
+    [MODULES.TRANSACTIONS]: NONE,
     // Kitchen board টা রান্নাঘরের পর্দা — cashier এর কাউন্টারে ওটার দরকার নেই।
     // খাবার হাতে দেওয়ার কাজটা cashier তার নিজের POS স্ক্রিন থেকেই করতে পারে।
     [MODULES.KITCHEN]: NONE,
@@ -287,7 +288,6 @@ export const ROLE_MODULE_ACCESS = {
     [MODULES.CANCELLATIONS]: READ_ONLY,
     [MODULES.STAFF]: NONE,
     [MODULES.PERMISSIONS]: NONE,
-    [MODULES.SETTINGS]: NONE,
     [MODULES.USER_SETTINGS]: FULL,
   },
 
@@ -295,6 +295,7 @@ export const ROLE_MODULE_ACCESS = {
   [ROLES.STAFF]: {
     [MODULES.DASHBOARD]: NONE,
     [MODULES.ORDERS]: READ_ONLY,
+    [MODULES.TRANSACTIONS]: NONE,
     [MODULES.KITCHEN]: FULL,
     [MODULES.TABLES]: FULL,
     [MODULES.MENU]: READ_ONLY,
@@ -303,17 +304,69 @@ export const ROLE_MODULE_ACCESS = {
     [MODULES.CANCELLATIONS]: NONE,
     [MODULES.STAFF]: NONE,
     [MODULES.PERMISSIONS]: NONE,
-    [MODULES.SETTINGS]: NONE,
     [MODULES.USER_SETTINGS]: FULL,
   },
 }
 
-/** login করার পর role অনুযায়ী প্রথম যে পেজে যাবে। */
+/**
+ * login করার পর role অনুযায়ী *পছন্দের* প্রথম পেজ।
+ * ⚠️ এটা চূড়ান্ত নয় — permission group এ সেই module বন্ধ থাকতে পারে।
+ *    আসল ঠিকানা বের করতে সবসময় resolveLandingPath() ব্যবহার করুন।
+ */
 export const ROLE_LANDING_PATH = {
   [ROLES.OWNER]: '/dashboard',
   [ROLES.MANAGER]: '/dashboard',
   [ROLES.CASHIER]: '/dashboard/orders',
   [ROLES.STAFF]: '/dashboard/tables',
+}
+
+// পছন্দের module কাজ না করলে এই ক্রমে পরেরটা খোঁজা হয়
+const LANDING_ORDER = [
+  MODULES.DASHBOARD,
+  MODULES.ORDERS,
+  MODULES.TABLES,
+  MODULES.KITCHEN,
+  MODULES.TRANSACTIONS,
+  MODULES.BILLING,
+  MODULES.MENU,
+  MODULES.INVENTORY,
+  MODULES.CANCELLATIONS,
+  MODULES.STAFF,
+  MODULES.PERMISSIONS,
+  MODULES.USER_SETTINGS,
+]
+
+/** একটা URL কোন module এর ভিতরে পড়ে — সবচেয়ে নির্দিষ্ট মিলটাই জেতে */
+export const moduleForPath = (path) => {
+  if (!path) return null
+  return (
+    MODULE_CONFIG
+      .filter((m) => path === m.path || path.startsWith(`${m.path}/`))
+      .sort((a, b) => b.path.length - a.path.length)[0] || null
+  )
+}
+
+/**
+ * এই user আসলে কোন পেজে নামবে।
+ *
+ *   canView    — একটা module সে দেখতে পারে কিনা, তার পরীক্ষক
+ *   preferred  — যেখানে যেতে চেয়েছিল (টাইপ করা URL); অনুমতি না থাকলে বাদ
+ *
+ * role এর পছন্দের পেজেও অনুমতি না থাকলে (custom permission group এ সেটা
+ * বন্ধ), যেগুলো খোলা আছে তার প্রথমটায় পাঠানো হয়। কোনোটাই না থাকলে
+ * "My Profile" — ওটা কখনো বন্ধ হয় না।
+ */
+export const resolveLandingPath = (role, canView, preferred = null) => {
+  for (const path of [preferred, ROLE_LANDING_PATH[normalizeRole(role)]]) {
+    const mod = moduleForPath(path)
+    if (mod && canView(mod.id)) return path
+  }
+
+  for (const id of LANDING_ORDER) {
+    if (canView(id)) return getModuleConfig(id)?.path || '/dashboard/profile'
+  }
+
+  return '/dashboard/profile'
 }
 
 /** যেকোনো access matrix (role এর বা custom group এর) থেকে module config list. */

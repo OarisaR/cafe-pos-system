@@ -1,5 +1,5 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import { AuthProvider, useAuth } from '../authentication/context/AuthContext'
 import { MODULES } from '../authentication/constants/rbac'
@@ -16,7 +16,7 @@ import { UserSettingsView } from '../authentication/profile/UserSettingsView'
 
 // Person 2 — Orders & Tables
 import { OrdersPage } from '../orders/OrdersPage'
-import { OrdersHome } from '../orders/OrdersHome'
+import { OrdersRegister } from '../orders/OrdersRegister'
 import { CancellationsPage } from '../orders/CancellationsPage'
 import { KitchenPage } from '../kitchen/KitchenPage'
 import { TablesPage } from '../tables/TablesPage'
@@ -27,20 +27,35 @@ import { InventoryPage } from '../inventory/InventoryPage'
 
 // Person 4 — Billing & External Interfaces
 import { BillingPage } from '../billing/BillingPage'
-import { SystemSettingsPage } from '../external-interfaces/SystemSettingsPage'
 
 /**
  * `/` তে ঢুকলে কী হবে:
- *   - session চেক চলছে  → loader
- *   - লগইন করা নেই      → /login
- *   - লগইন করা আছে      → role অনুযায়ী তার নিজের landing page
+ *   - session চেক চলছে       → loader
+ *   - লগইন করা নেই           → /login
+ *   - profile/group আসেনি    → loader (সর্বোচ্চ ৪ সেকেন্ড)
+ *   - লগইন করা আছে           → তার অনুমতি অনুযায়ী আসল landing page
+ *
+ * ⚠️ profile আর permission group আসার আগে redirect করলে custom group এ
+ *    বসা user কে তার base role এর পেজে পাঠানো হয় — যেটায় তার অনুমতি নেই,
+ *    আর সে সাথে সাথেই "Access Restricted" দেখে। তাই একটু অপেক্ষা।
+ *    কিন্তু অনির্দিষ্টকাল নয় — নেট না থাকলেও যেন লোডারে আটকে না থাকে।
  */
 const RootRedirect = () => {
-  const { user, initializing, landingPath } = useAuth()
+  const { user, profile, initializing, groupsLoaded, getLandingPath } = useAuth()
+  const location = useLocation()
+  const [waited, setWaited] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), 4000)
+    return () => clearTimeout(timer)
+  }, [])
 
   if (initializing) return <AuthLoadingScreen />
   if (!user) return <Navigate to="/login" replace />
-  return <Navigate to={landingPath} replace />
+  if (!waited && (!profile || !groupsLoaded)) return <AuthLoadingScreen />
+
+  // লগইনের আগে যে পেজে যেতে চেয়েছিল সেটাই, তবে অনুমতি থাকলে
+  return <Navigate to={getLandingPath(location.state?.from)} replace />
 }
 
 /**
@@ -78,8 +93,18 @@ export const AppRouter = () => (
             path="orders"
             element={
               <Guarded module={MODULES.ORDERS}>
-                {/* Owner/Manager → read-only register, Cashier → POS */}
-                <OrdersHome />
+                {/* সবার জন্যই POS — টেবিল বেছে অর্ডার নেওয়ার পর্দা।
+                    অর্ডারের ইতিহাস আলাদা হয়ে গেছে → /dashboard/transactions */}
+                <OrdersPage />
+              </Guarded>
+            }
+          />
+          {/* Person 2 — All Transactions: সব অর্ডারের ইতিহাস, শুধু দেখার */}
+          <Route
+            path="transactions"
+            element={
+              <Guarded module={MODULES.TRANSACTIONS}>
+                <OrdersRegister />
               </Guarded>
             }
           />
@@ -196,14 +221,6 @@ export const AppRouter = () => (
           <Route
             path="/dashboard/billing/:orderId"
             element={<BillingPage />}
-          />
-          <Route
-            path="settings"
-            element={
-              <Guarded module={MODULES.SETTINGS}>
-                <SystemSettingsPage />
-              </Guarded>
-            }
           />
         </Route>
 
