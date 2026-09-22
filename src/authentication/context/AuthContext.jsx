@@ -114,6 +114,7 @@ export const AuthProvider = ({ children }) => {
     const extra = extraMap[authUser.id] || {}
 
     let row = null
+    let lookupFailed = false
     try {
       const { data, error: profErr } = await supabase
         .from('profiles')
@@ -124,11 +125,29 @@ export const AuthProvider = ({ children }) => {
       if (profErr) throw profErr
       row = data
     } catch (err) {
+      // নেট নেই / RLS আটকেছে — "row নেই" আর "পড়তে পারিনি" এক নয়
+      lookupFailed = true
       console.warn('Profile fetch note:', err.message)
     }
 
-    // Role priority: profiles table → auth metadata → নিরাপদ default (cashier)
-    const resolvedRole = normalizeRole(row?.role || metadata.role)
+    // ---- মুছে ফেলা অ্যাকাউন্ট এখানেই আটকে যায় ----
+    if (!lookupFailed && !row) {
+      console.warn('No profile row for this account — treating it as deleted.')
+      setProfile(null)
+      setUser(null)
+      setError('This account is no longer active. Please contact the cafe owner.')
+      // signOut টা পরের tick এ — onAuthStateChange এর ভিতর থেকে ডাকা
+      // হলে Supabase এর auth lock ধরে বসে থাকা হবে
+      setTimeout(() => {
+        supabase.auth.signOut().catch(() => {})
+      }, 0)
+      return null
+    }
+
+    // Role শুধু profiles.role থেকেই। auth metadata ব্যবহারকারী নিজেই
+    // বদলাতে পারে (updateUser), তাই ওটা কখনোই অধিকারের উৎস নয় —
+    // ডেটাবেজের RLS ও ঠিক এই একই কলামটাই দেখে (app_role()).
+    const resolvedRole = normalizeRole(row?.role)
 
     const merged = {
       id: authUser.id,
@@ -137,8 +156,11 @@ export const AuthProvider = ({ children }) => {
       full_name: row?.full_name || metadata.full_name || 'Staff Member',
       phone: row?.phone || metadata.phone || extra.phone || '',
       role: resolvedRole,
-      permission_group_id:
-        row?.permission_group_id || metadata.permission_group_id || extra.permission_group_id || null,
+      // auth metadata এখানেও ব্যবহার করা হয় না — ওটা ব্যবহারকারী নিজেই
+      // updateUser() দিয়ে বদলাতে পারে, আর custom group ঠিক করে দেয়
+      // sidebar এ কী কী দেখা যাবে। `extra` শুধু পুরনো schema এর জন্য
+      // (permission_group_id কলামটা না থাকলে) fallback হিসেবে থাকল।
+      permission_group_id: row?.permission_group_id || extra.permission_group_id || null,
       is_confirmed: Boolean(row?.is_confirmed ?? authUser.email_confirmed_at),
       created_at: row?.created_at || authUser.created_at || null,
       updated_at: row?.updated_at || null,
@@ -186,14 +208,20 @@ export const AuthProvider = ({ children }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // ⚠️ এই callback টা Supabase তার auth lock ধরে রেখে চালায়।
+      //    ভিতরে আর কোনো Supabase call `await` করা যাবে না — করলে
+      //    lock এর জন্য অপেক্ষা করতে করতে অ্যাপ "Checking your
+      //    session…" এ আটকে যায়। তাই কাজটা পরের tick এ সরানো হলো।
       if (event === 'SIGNED_OUT' || !session?.user) {
         setUser(null)
         setProfile(null)
         return
       }
       setUser(session.user)
-      await fetchProfile(session.user)
+      setTimeout(() => {
+        if (active) fetchProfile(session.user)
+      }, 0)
     })
 
     return () => {
@@ -580,14 +608,20 @@ export const AuthProvider = ({ children }) => {
       delete map[staffId]
       localStorage.setItem(STAFF_SYNC_KEY, JSON.stringify(map))
 
-      try {
-        const { error: rpcErr } = await supabase.rpc('delete_staff_user', { user_id: staffId })
-        if (rpcErr) {
-          console.warn('RPC delete note (falling back to table delete):', rpcErr.message)
-          await supabase.from('profiles').delete().eq('id', staffId)
-        }
-      } catch (dbErr) {
-        console.warn('Supabase delete exception:', dbErr.message)
+      const { error: rpcErr } = await supabase.rpc('delete_staff_user', {
+        user_id: staffId,
+      })
+
+      if (rpcErr) {
+        // ⚠️ শুধু profiles থেকে মুছে দিলে login করার অ্যাকাউন্টটা বেঁচে
+        //    থাকে — তখন পুরনো confirm লিংক দিয়ে সে আবার ঢুকতে পারে।
+        //    তাই আর চুপচাপ fallback নয়, পরিষ্কার করে জানানো হয়।
+        console.error('delete_staff_user RPC failed:', rpcErr)
+        removeDeletedStaffId(staffId)
+        throw new Error(
+          `Could not delete this account: ${rpcErr.message}. ` +
+            'Run supabase/supabase_setup.sql (the SECURITY HARDENING section), then try again.'
+        )
       }
 
       return true
