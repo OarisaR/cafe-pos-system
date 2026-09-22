@@ -314,7 +314,7 @@ export const AuthProvider = ({ children }) => {
         email: cleanEmail,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: window.location.origin + '/auth/confirmed',
           data: {
             full_name: fullName.trim(),
             role: ROLES.CASHIER,
@@ -463,7 +463,7 @@ export const AuthProvider = ({ children }) => {
         email: cleanEmail,
         password: initialPassword,
         options: {
-          emailRedirectTo: window.location.origin + '/login',
+          emailRedirectTo: window.location.origin + '/auth/confirmed',
           data: {
             full_name: fullName.trim(),
             phone: phone.trim(),
