@@ -1,208 +1,97 @@
-# Cafe POS System
+# L'Aroma POS
 
-A modern, web-based Point of Sale (POS) and inventory management platform designed specifically for cafes, featuring real-time table tracking, recipe-linked inventory (Bill of Materials), automated COGS calculation, and NBR VAT compliance.
+A modern, web-based Point of Sale and inventory management platform built for cafés — featuring real-time table tracking, recipe-linked inventory, automated cost calculation, and role-based access control.
+
+**Live demo:** [cafe-pos-system-olive.vercel.app](https://cafe-pos-system-olive.vercel.app/)
+
+<p>
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" alt="JavaScript" />
+</p>
 
 ---
 
-## 📖 Key Documentation
+## Overview
 
-- **[PRD (Product Requirements Document)](PRD.md):** Complete specifications, user personas, MoSCoW prioritization, and feature breakdown.
-- **[System Context & Architecture](CONTEXT.md):** Domain workflows, database entity-relationship schema (ERD), hardware integration profiles, and localization context.
-- **[AI Guidelines & Rules](AGENTS.md):** Engineering standards, POS ergonomics, styling tokens, and agent operational constraints.
-- **[Changelog](CHANGELOG.md):** Chronological log of versions, additions, and updates.
-- **[Original SRS Document](Cafe_SRS.pdf):** Initial Software Requirements Specification document (v0.1 Draft).
+L'Aroma POS is a multi-module, permission-based application for running the day-to-day operations of a café: table status, order taking, billing, a menu with linked recipes, and live ingredient inventory. Access to each module is controlled by role, so a cashier, kitchen staff member, and owner each see only what their job needs.
 
----
-
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Layer | Technology |
 | :--- | :--- |
-| **Frontend** | React.js (Vite), Pure CSS / Modern UI Tokens (Touch-optimized) |
-| **Backend** | Node.js, Express.js REST API |
-| **Database & Auth** | Supabase (PostgreSQL, Supabase Auth, Supabase Storage) |
-| **Realtime Sync** | Supabase Realtime Channels |
-| **Peripherals** | ESC/POS thermal printer, Cash drawer, MFS (bKash / Nagad) QR |
-| **Hosting** | Vercel / Cloud Infrastructure |
+| Frontend | React.js |
+| Backend & Database | Supabase (PostgreSQL, Auth, Row-Level Security) — called directly from the client, no separate API server |
+| Hosting | Vercel |
 
----
+## Features
 
-## 👥 Roles & Interfaces
+### Tables
+- Live floor view of every table — Available, Occupied, or Needs Cleaning
+- One tap to seat a table, send it to Needs Cleaning, or clear it back to Available
+- A "needs attention" list surfaces every table waiting to be cleaned
 
-1. **Cashier Terminal:**
-   - 10–15 inch touch-screen optimized interface.
-   - Quick-tap order creation (Dine-in, Takeaway, Delivery).
-   - Live visual table floor plan (`Empty`, `Occupied`, `Reserved`, `Needs Cleaning`).
-   - Fast checkout (< 3 seconds) with Cash change calculation and bKash/Nagad handling.
+### Orders
+- Start from a table (Dine In) or start a Take Away order directly
+- Build an order from the live menu, with per-item quantity and notes (e.g. more ice needed)
+- Full status lifecycle: Open → Paid → Served, or Cancelled at an eligible stage
+- A recent-orders panel shows every order's current status, reopenable while still active
 
-2. **Owner / Admin Dashboard:**
-   - Recipe & Bill of Materials (BOM) management.
-   - Real-time stock levels with Low/Moderate/High thresholds and alerts.
-   - Automated Cost of Goods Sold (COGS) and profit margin analysis.
-   - Menu management with category organization and instant out-of-stock toggles.
-   - Sales summaries with CSV/PDF reporting.
+### Billing
+- Customizable discount and service charge per bill
+- Auto-calculated VAT, change due, and grand total
+- Generates a receipt once a bill is paid, with a "send to printer" action
 
----
+### Menu
+- Full CRUD on categories and menu items
+- Each item carries a recipe — the exact ingredients and quantities it consumes
+- Items automatically flip to unavailable the moment a required ingredient hits zero stock
 
-## 🚀 Setup (প্রথমবার চালানোর নিয়ম)
+### Inventory
+- Live ingredient stock levels tied directly to every order placed
+- Restocking for both ingredients and items
+- Low-stock visibility so nothing runs out mid-service
 
-### ধাপ ১ — Supabase ডেটাবেজ তৈরি করুন
+### Owner Dashboard
+At-a-glance performance metrics:
+- Total sales and number of transactions
+- Net income (after discount, before VAT)
+- Gross profit with margin and cost breakdown
+- Average bill value
+- Items sold, split by dine-in vs. takeaway
+- VAT collected and discount given
+- Generate a PDF sales summary report for any period (e.g. monthly or yearly)
 
-[`supabase/supabase_setup.sql`](supabase/supabase_setup.sql) ফাইলটার **পুরোটা** কপি করে
-**Supabase Dashboard → SQL Editor → New Query** এ paste করে **Run** চাপুন।
+### Role-Based Access
+- Roles: Owner (includes admin-level access), Manager, Cashier, Kitchen Staff
+- The Owner can grant or revoke module access for any person
+- Custom roles can be created on the fly (e.g. a Cleaner role limited to the Tables module) with only the permissions they need
 
-এটা যা করবে:
+## Roadmap
 
-- `public.profiles` টেবিলে `created_at`, `updated_at`, `last_login_at` টাইমস্ট্যাম্প যোগ করবে
-- প্রতিটি user এর `role` কলাম ঠিক করবে — `owner` / `manager` / `cashier` / `staff`
-- পুরনো `admin` role গুলো `owner` এ রূপান্তর করবে
-- `staff_directory` নামে একটা view বানাবে, যেখানে role ও timestamp একসাথে দেখা যায়
-- চারটা রোলের জন্য চারটা ডেমো লগইন অ্যাকাউন্ট বানাবে
+- **Manager-approved cancellations** — once an order is Served, a cashier can no longer cancel it outright; instead they file a cancellation request that a manager approves or rejects, with the reason logged either way
+- **Kitchen queue stage** — an in-between "preparing" status between Open and Served, after which an order can no longer be cancelled by the cashier directly
 
-### ধাপ ২ — `.env` ফাইল
+## Future Work
 
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
+- **Printer integration** — connect the existing "send to printer" receipt action to a physical ESC/POS printer
+- **Kitchen receipt printing** — auto-generate a printable receipt for kitchen staff when an order enters the food-preparation stage
+- **Payment gateway integration** — bKash / Nagad / Card support at checkout
+- **Daily expense logging** — track recurring operating costs (rent, electricity, etc.) alongside sales for a fuller profit picture
+- **AI-assisted item descriptions** — suggest a menu item description automatically when a staff member can't come up with one
 
-### ধাপ ৩ — অ্যাপ চালান
+## Getting Started
 
 ```bash
+git clone <your-repo-url>
+cd cafe-pos-system
+
 npm install
+
+cp .env.example .env
+# Add your Supabase URL and anon key to .env
+
 npm run dev     # http://localhost:5173
 ```
-
-`http://localhost:5173` খুললে এখন **সরাসরি Login পেজ** আসবে। লগইন ছাড়া কোনো
-dashboard route খোলা যাবে না — URL সরাসরি টাইপ করলেও না।
-
-### ডেমো অ্যাকাউন্ট
-
-| Role | Email | Password | লগইনের পর যা দেখবে |
-| :--- | :--- | :--- | :--- |
-| Owner | `owner@cafepos.com` | `Owner@12345` | সব module + Staff & Permission Management |
-| Manager | `manager@cafepos.com` | `Manager@12345` | অপারেশন ও রিপোর্ট, staff management নয় |
-| Cashier | `cashier@cafepos.com` | `Cashier@12345` | শুধু Orders, Tables, Billing |
-| Staff | `staff@cafepos.com` | `Staff@12345` | Tables ও Inventory |
-
-> ⚠️ এগুলো ডেমো পাসওয়ার্ড। জমা দেওয়ার আগে বদলে নিন।
-
----
-
-## 🔐 Routes & Access Control
-
-সব permission এর একমাত্র উৎস: **[`src/authentication/constants/rbac.js`](src/authentication/constants/rbac.js)**।
-সেখানকার `ROLE_MODULE_ACCESS` ম্যাট্রিক্সের একটা লাইন বদলালেই sidebar, route guard
-আর edit-বাটন — তিনটাই একসাথে বদলে যায়।
-
-| Route | Module | Owner | Manager | Cashier | Staff |
-| :--- | :--- | :-: | :-: | :-: | :-: |
-| `/login` | — | public | public | public | public |
-| `/dashboard` | Overview | ✅ | ✅ | ❌ | ❌ |
-| `/dashboard/orders` | Orders & POS | ✅ | ✅ | ✅ | 👁️ |
-| `/dashboard/tables` | Tables | ✅ | ✅ | ✅ | ✅ |
-| `/dashboard/menu` | Menu | ✅ | ✅ | 👁️ | 👁️ |
-| `/dashboard/inventory` | Inventory | ✅ | ✅ | ❌ | ✅ |
-| `/dashboard/billing` | Billing | ✅ | ✅ | ✅ | ❌ |
-| `/dashboard/reports` | Reports | ✅ | 👁️ | ❌ | ❌ |
-| `/dashboard/users` | Staff Management | ✅ | ❌ | ❌ | ❌ |
-| `/dashboard/permissions` | Permission Groups | ✅ | ❌ | ❌ | ❌ |
-| `/dashboard/settings` | System Settings | ✅ | ❌ | ❌ | ❌ |
-| `/dashboard/profile` | My Profile | ✅ | ✅ | ✅ | ✅ |
-
-✅ = View + Edit  ·  👁️ = শুধু View  ·  ❌ = Sidebar এ দেখাবেই না, URL দিলে "Access Restricted"
-
-কোডে ব্যবহার:
-
-```jsx
-const { canAccess, canEdit } = useAuth()
-
-canAccess(MODULES.REPORTS)  // route/sidebar এ দেখাবে কিনা
-canEdit(MODULES.MENU)       // Save/Delete বাটন active থাকবে কিনা
-```
-
----
-
-## 📁 Folder Structure
-
-```
-src/
-├── authentication/          ← Person 1 (Auth & Roles)
-│   ├── context/             AuthContext.jsx — login, session, role, permission helpers
-│   ├── constants/           rbac.js, permissions.js — roles, routes, access matrix
-│   ├── routes/              ProtectedRoute.jsx
-│   ├── pages/               LoginPage.jsx
-│   ├── staff-management/    StaffManagementView.jsx
-│   ├── permission-groups/   PermissionGroupsView.jsx
-│   ├── profile/             UserSettingsView.jsx
-│   └── components/          IdleWarningModal.jsx
-├── routes/                  AppRouter.jsx — পুরো সিস্টেমের route map (সবার)
-├── dashboard/               OverviewPage.jsx — Owner/Manager এর home dashboard
-├── reports/                 ← Person 1 (Profit Calculation & Reporting)
-├── orders/                  ← Person 2 (Order Management)
-├── tables/                  ← Person 2 (Table Management)
-├── menu/                    ← Person 3 (Menu Management)
-├── inventory/               ← Person 3 (Ingredient Inventory)
-├── billing/                 ← Person 4 (Billing & Payment)
-├── external-interfaces/     ← Person 4 (payment gateway, printer, system settings)
-├── shared/                  ← সবার ব্যবহারের জন্য
-│   ├── lib/                 supabase.js
-│   ├── layout/              DashboardLayout.jsx, AdminSidebar.jsx
-│   └── components/          ModuleScaffold.jsx
-├── App.jsx
-├── main.jsx
-└── index.css
-```
-
-```
-supabase/
-├── supabase_setup.sql       ← ১ম: auth, profiles, roles (একবার চালাতে হবে)
-├── supabase_pos_schema.sql  ← ২য়: menu, inventory, tables, orders, bills (একবার চালাতে হবে)
-└── patches/                 ← আগেই চালানো হয়ে গেছে; সব কিছু setup.sql এর ভিতরেও আছে
-    ├── supabase_fix_role_sync.sql
-    └── supabase_fix_group_sync.sql
-```
-
-> `patches/` এর ফাইলগুলো আবার চালানোর দরকার নেই — শুধু কী কী বদলানো হয়েছিল তার রেকর্ড।
-
----
-
-## 👨‍💻 টিমের কাজ ভাগাভাগি (৪ জন)
-
-প্রত্যেকের module আলাদা ফোল্ডারে, তাই একসাথে কাজ করলেও git conflict কম হবে।
-
-| | দায়িত্ব | ফাইল | কেন |
-| :--- | :--- | :--- | :--- |
-| **Person 1** | Auth & Roles (শুরুতে) → Profit + Reporting (শেষে) | `src/authentication/`, `src/reports/` | Auth সবার আগে দরকার — foundation। Reporting বাকি সবার ডেটার উপর নির্ভরশীল, তাই শেষে। |
-| **Person 2** | Order Management + Table Management | `src/orders/`, `src/tables/` | অর্ডার টেবিলে assign হয় — একই ডেটা-ফ্লো। |
-| **Person 3** | Menu Management + Ingredient Inventory | `src/menu/`, `src/inventory/` | মেনু আইটেম recipe (BOM) এর সাথে গভীরভাবে যুক্ত। |
-| **Person 4** | Billing & Payment + External Interfaces | `src/billing/`, `src/external-interfaces/` | Billing সরাসরি payment gateway ও printer চালায়। |
-
-**নতুন module যোগ করার নিয়ম:**
-
-1. `src/<your-module>/<Name>Page.jsx` ফাইল বানান
-2. `src/authentication/constants/rbac.js` → `MODULES` + `MODULE_CONFIG` + `ROLE_MODULE_ACCESS` এ একবার করে লিখুন
-3. `src/routes/AppRouter.jsx` এ `<Route>` যোগ করুন
-
-sidebar, guard আর permission নিজে থেকেই কাজ করবে।
-
----
-
-## ⚠️ জানা সীমাবদ্ধতা
-
-- **Staff তৈরি করলে owner এর session এক মুহূর্তের জন্য টাল খেতে পারে।** কারণ ব্রাউজার
-  থেকে `supabase.auth.signUp()` করলে Supabase নতুন user কে সাইন-ইন করে দেয়।
-  কোডে পুরনো session ফিরিয়ে আনা হয়, কিন্তু আসল সমাধান হলো একটা Edge Function
-  থেকে `admin.createUser()` কল করা (service-role key দিয়ে)।
-- **RLS policy গুলো এখন উদার** — যেকোনো logged-in user সব profile পড়তে/লিখতে পারে।
-  ক্লাস প্রজেক্টের জন্য ঠিক আছে, production এ `auth.uid() = id` দিয়ে সীমিত করতে হবে।
-- **Permission group গুলো localStorage এ রাখা** — প্রতিটি ব্রাউজারে আলাদা।
-  ভাগাভাগি করতে হলে Supabase এ একটা `permission_groups` টেবিল লাগবে।
-- Orders / Tables / Billing / Inventory এর ডেটা এখনো mock — Person 2, 3, 4
-  নিজ নিজ module এ Supabase টেবিল যোগ করবে।
-
----
-
-## 📦 Repository
-
-- **Remote Git Repository:** `https://github.com/OarisaR/cafe-pos-system.git`
